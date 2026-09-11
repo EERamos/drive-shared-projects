@@ -15,6 +15,8 @@ What Claude can expect when it reads and writes a project folder through the Goo
 | Emoji in Docs | Some arrive corrupted. | No emoji in any project document. |
 | Bold inside Doc tables | Arrives escaped as \*\*. | Table cells stay plain text. |
 | Base64 download | Exists, returns the whole file base64-encoded. | Never used; it wastes context. |
+| Markdown table inside a Doc created from Markdown | Comes back with an empty header row on top and the real header as a bold data row; underscores arrive escaped as \_. | Readable for Claude. The scripts parse local files, never connector output, so the index header rule is unaffected. |
+| Plain .md file (created without conversion) | Comes back with Markdown punctuation escaped (\# for headings, \- for bullets) and two trailing spaces per line. | Readable but noisy. Docs format is the more legible choice when the project is not in a vault or repo. |
 
 The 50,000-character limit is a margin, not a measurement. What was measured is a 30 KB document that arrived complete and a 54 KB one that did not. The exact cutoff between them was never found, so the rule sits below the failure with room to spare.
 
@@ -46,10 +48,10 @@ Four of the items are connector operations Claude runs. Two are the paste path, 
 
 | Item | Environment | Date | Result | If it fails |
 | --- | --- | --- | --- | --- |
-| Create folder | pending | pending | pending | Create the folder by hand in the browser and give the skill its ID. |
-| Create Doc from Markdown | pending | pending | pending | Fall back to md format, or paste the Markdown into a Doc by hand. |
-| Create .md without conversion | pending | pending | pending | Use docs format for this environment, or create the .md by hand. |
-| Share as Commenter | pending | pending | pending | Share from the browser and confirm the other account sees the folder in its own connector. |
+| Create folder | Claude Code desktop with the claude.ai Drive connector | 2026-09-11 | Pass. Project folder and two subfolders created with parentId; IDs returned in the result; listing by parentId shows all children. | Create the folder by hand in the browser and give the skill its ID. |
+| Create Doc from Markdown | Claude Code desktop with the claude.ai Drive connector | 2026-09-11 | Pass. text/markdown content became a Google Doc with real headings, lists and a table; read back by ID as Markdown. | Fall back to md format, or paste the Markdown into a Doc by hand. |
+| Create .md without conversion | Claude Code desktop with the claude.ai Drive connector | 2026-09-11 | Pass. File kept mimeType text/markdown; rename with update_file kept the same ID. | Use docs format for this environment, or create the .md by hand. |
+| Share as Commenter | pending (needs a second account) | pending | pending | Share from the browser and confirm the other account sees the folder in its own connector. |
 | Edit Doc in the browser keeps ID | pending | pending | pending | Re-record the new ID in the Drive IDs block of 00_INSTRUCTIONS and in the index row. |
 | User pastes a log entry, Claude re-reads it | pending | pending | pending | Check the paste landed in the Decisions section and that no earlier entry was overwritten. |
 
