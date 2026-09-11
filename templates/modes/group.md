@@ -1,0 +1,4 @@
+- {{OWNER}} owns the index. Others propose rows by adding a log entry titled "Proposed index row".
+- The author field in log entries is required.
+- Sharing: the index owner and instruction owners have Editor access; everyone else has Commenter access.
+- Changing 00_INSTRUCTIONS: add a log entry with the proposed change, get approval from an owner, then edit.

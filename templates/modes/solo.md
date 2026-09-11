@@ -1,0 +1,3 @@
+- One person owns everything and edits files directly.
+- The author field in log entries is optional.
+- Sharing: none required.

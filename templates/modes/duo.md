@@ -1,0 +1,4 @@
+- {{OWNER}} owns the index. The other person proposes rows; the owner merges them.
+- The author field in log entries is required.
+- Sharing: both people have Editor access on the folder.
+- Changing 00_INSTRUCTIONS: edit directly, then add a log entry describing the change.
