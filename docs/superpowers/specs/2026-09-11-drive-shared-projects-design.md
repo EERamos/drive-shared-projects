@@ -191,7 +191,19 @@ Claude or the user fills it from the connector.
 - Versioning: semver tags on the repo, CHANGELOG entries per release.
   Consumers pin a tag.
 
-## 11. Open items
+## 11. Works with any assistant
+
+The folder is plain Drive content: Google Docs written in Markdown, `.md`
+files and originals. Nothing in it depends on Claude. Any assistant that can
+read the user's Drive (ChatGPT, Gemini, Grok, Copilot, a local model behind
+a Drive tool) can be pointed at the same folder with the same instruction
+block, so a team can mix assistants and still share one knowledge base and
+one decision log. The skill ships a vendor-neutral version of the
+instruction block (`templates/assistant-instruction-generic.md`) next to the
+Claude one, and the README explains the advantage. Verifying each vendor's
+connector is out of scope for phase 1.
+
+## 12. Open items
 
 None blocking. Write-side connector verification (section 9) is scheduled
 after the first implementation pass.
