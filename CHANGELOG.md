@@ -14,3 +14,6 @@ All notable changes to this project are documented here. The format follows Keep
 - Scripts: init_project, build_index, check_index (standard library, exit-code verdicts) with a pytest suite.
 - Example project under examples/sample-project.
 - Installers for Claude Code (install.ps1, install.sh).
+
+[Unreleased]: https://github.com/EERamos/drive-shared-projects/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/EERamos/drive-shared-projects/releases/tag/v0.1.0

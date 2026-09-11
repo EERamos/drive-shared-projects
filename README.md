@@ -11,7 +11,7 @@ A Claude skill that turns a Google Drive folder into the equivalent of a shared 
 
 ## Works with any assistant
 
-The folder is plain Drive content: Google Docs written in Markdown, .md files and your originals. Nothing in it is specific to Claude. Any assistant that can read your Drive (ChatGPT, Gemini, Grok, Copilot, a local model behind a Drive tool) can be pointed at the same folder with the same instruction block, so a team can mix assistants and still share one knowledge base and one decision log. Use `templates/assistant-instruction-generic.md` for assistants other than Claude; the skill itself (the setup, ingest and maintenance workflows) runs in Claude, and the other assistants consume what it maintains.
+The folder is plain Drive content: Google Docs written in Markdown, .md files and your originals. Nothing in it is specific to Claude. Any assistant that can read your Drive can be pointed at the same folder with the same instruction block. That covers ChatGPT, Gemini, Grok, Copilot and a local model behind a Drive tool. A team can therefore mix assistants and still share one knowledge base and one decision log. Use `templates/assistant-instruction-generic.md` for assistants other than Claude. The skill itself (the setup, ingest and maintenance workflows) runs in Claude, and the other assistants consume what it maintains.
 
 ## Install
 
@@ -19,11 +19,21 @@ The folder is plain Drive content: Google Docs written in Markdown, .md files an
 
 Clone the repo and run the installer; it copies SKILL.md, templates, references and scripts into `~/.claude/skills/drive-shared-projects`.
 
+Windows (PowerShell):
+
 ```powershell
 git clone https://github.com/EERamos/drive-shared-projects.git
 cd drive-shared-projects
 .\install.ps1
 ```
+
+If PowerShell refuses to run the script because of the execution policy, run it as a file instead:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+macOS / Linux:
 
 ```bash
 git clone https://github.com/EERamos/drive-shared-projects.git
@@ -31,15 +41,20 @@ cd drive-shared-projects
 ./install.sh
 ```
 
+Without git, use the green Code button on GitHub, choose Download ZIP, unzip it, and run the installer from the unzipped folder.
+
+The installers copy over what is already installed; they do not remove files that a later version deleted. To upgrade, delete `~/.claude/skills/drive-shared-projects` first and install again.
+
 ### claude.ai and Cowork
 
-Zip `SKILL.md`, `templates/` and `references/` into `drive-shared-projects.zip` and upload it under Settings, Skills. Scripts are not used there; the skill falls back to doing everything through the connector.
+Zip the whole `drive-shared-projects` folder, so the archive contains `drive-shared-projects/SKILL.md` and not a loose `SKILL.md`, and upload it under Settings, Skills. On Windows: right click the folder, Send to, Compressed (zipped) folder. On macOS: right click the folder, Compress. Keep the folder named `drive-shared-projects`; it has to match the `name` in the SKILL.md frontmatter. Scripts are not used there; the skill falls back to doing everything through the connector.
 
 Every member of a shared project installs the skill on their own account and needs the Google Drive connector enabled.
 
 ## Set up a project in ten minutes
 
-1. Open a chat and say "set up a shared project on Drive". The skill asks for the name, the mode and the format.
+0. Connect Google Drive. On claude.ai: Settings, Connectors, Google Drive, and authorize the account that holds the folder. The connector has to be enabled in Claude Code and in Cowork too; nothing in this skill works without it.
+1. Open a chat and say "set up a shared project on Drive". The skill asks for the name, the mode, the format and who owns the index.
 2. It creates the folder, the subfolders and the three documents in your Drive and hands you an instruction block with the real file IDs.
 3. Create a Claude project (or a Cowork task) and paste the block into its instructions.
 4. Share the Drive folder following the mode's sharing rule. Every member pastes the same block into their own project.

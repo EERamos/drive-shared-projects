@@ -10,4 +10,5 @@ foreach ($item in @("SKILL.md", "templates", "references", "scripts")) {
     $src = Join-Path $PSScriptRoot $item
     Copy-Item -Path $src -Destination $dest -Recurse -Force
 }
+Get-ChildItem -Path $dest -Directory -Recurse -Filter "__pycache__" | Remove-Item -Recurse -Force
 Write-Host "Installed drive-shared-projects to $dest"

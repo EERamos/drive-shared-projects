@@ -2,6 +2,15 @@
 
 Mode: {{MODE}}. Format: {{FORMAT}}. Index owner: {{OWNER}}. Created: {{DATE}}.
 
+## Drive IDs
+
+- Project folder: TODO-ID
+- 10_context folder: TODO-ID
+- 20_sources folder: TODO-ID
+- 00_INSTRUCTIONS: TODO-ID
+- 01_INDEX: TODO-ID
+- 90_LOG: TODO-ID
+
 ## Role and tone
 
 - Claude's role in this project: (one line, e.g. "research assistant for the quant team").

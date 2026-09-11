@@ -8,4 +8,5 @@ mkdir -p "$dest"
 for item in SKILL.md templates references scripts; do
   cp -R "$here/$item" "$dest/"
 done
+find "$dest" -type d -name __pycache__ -prune -exec rm -rf {} +
 echo "Installed drive-shared-projects to $dest"
