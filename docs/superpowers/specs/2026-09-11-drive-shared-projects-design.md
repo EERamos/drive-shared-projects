@@ -66,6 +66,7 @@ drive-shared-projects/
   README.md                     install on claude.ai, Claude Code, Cowork; 10-minute setup
   CHANGELOG.md                  Keep a Changelog format, semver
   LICENSE                       MIT
+  install.ps1, install.sh       copy the skill into ~/.claude/skills
   templates/
     00_INSTRUCTIONS.md          role, tone, rules, what to always read
     01_INDEX.md                 table: file, Drive ID, one-line summary, when to read, owner
