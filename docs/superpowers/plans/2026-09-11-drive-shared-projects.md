@@ -1897,6 +1897,11 @@ Expected: no uncommitted changes; one commit per task plus the two spec commits.
 Run (PowerShell): `.\install.ps1`
 Expected: `Installed drive-shared-projects to C:\Users\edgar\.claude\skills\drive-shared-projects`. Then `Get-ChildItem "$HOME\.claude\skills\drive-shared-projects"` lists SKILL.md, templates, references, scripts, and `git -C . diff --no-index --stat SKILL.md "$HOME\.claude\skills\drive-shared-projects\SKILL.md"` prints nothing (identical).
 
-- [ ] **Step 5: Report**
+- [ ] **Step 5: Tag the release locally**
+
+Run: `git tag -a v0.1.0 -m "drive-shared-projects 0.1.0" && git tag -l`
+Expected: `v0.1.0`. Do not push; publishing to GitHub is the user's decision.
+
+- [ ] **Step 6: Report**
 
 Summarize for the user: files created, test count, gate results, and the two items that stay pending by design: pushing the repo to GitHub as public, and the write-side connector checklist that needs approval to create a test folder in their Drive.
