@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from build_index import EXIT_OK, EXIT_USAGE, main, merge, scan
+from build_index import EXIT_OK, EXIT_USAGE, duplicate_files, main, merge, scan
 from common import (
     CONTEXT_DIR,
     ID_PLACEHOLDER,
@@ -160,3 +160,70 @@ def test_scan_gives_an_empty_summary_for_an_undecodable_file(tree: Path) -> None
     rows = {row.file: row.summary for row in scan(tree)}
     assert rows["10_context/binary.md"] == ""
     assert rows["10_context/latin.txt"] == ""
+
+
+CP1252_INDEX = "# \xcdndice\n".encode("cp1252")
+
+
+def test_main_non_utf8_index_is_usage_error(tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    (tree / INDEX_FILE).write_bytes(CP1252_INDEX)
+    assert main(["--root", str(tree)]) == 2
+    assert "is not readable as UTF-8 text" in capsys.readouterr().err
+
+
+def test_main_write_non_utf8_index_is_usage_error_and_keeps_the_file(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tree / INDEX_FILE).write_bytes(CP1252_INDEX)
+    assert main(["--root", str(tree), "--write"]) == 2
+    assert "is not readable as UTF-8 text" in capsys.readouterr().err
+    assert (tree / INDEX_FILE).read_bytes() == CP1252_INDEX
+
+
+def test_duplicate_files_lists_repeated_rows_once() -> None:
+    existing = [
+        IndexRow("10_context/pricing.md", "id1", "First", "always", "me"),
+        IndexRow("10_context/pricing.md", "id2", "Second", "never", "you"),
+        IndexRow("10_context/pricing.md", "id3", "Third", "never", "you"),
+        IndexRow("20_sources/contract.pdf", "id4", "Only once", "detail", "me"),
+    ]
+    assert duplicate_files(existing) == ["10_context/pricing.md"]
+
+
+def test_duplicate_files_is_empty_without_repeats() -> None:
+    assert duplicate_files([IndexRow("10_context/a.md", "id1", "S", "W", "O")]) == []
+
+
+def test_merge_keeps_the_first_of_two_rows_for_the_same_file() -> None:
+    existing = [
+        IndexRow("10_context/pricing.md", "id1", "First", "always", "me"),
+        IndexRow("10_context/pricing.md", "id2", "Second", "never", "you"),
+    ]
+    scanned = [IndexRow("10_context/pricing.md", ID_PLACEHOLDER, "Pricing model", "", "")]
+    assert merge(existing, scanned) == [
+        IndexRow("10_context/pricing.md", "id1", "First", "always", "me")
+    ]
+
+
+def test_main_warns_about_duplicate_rows(tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    (tree / INDEX_FILE).write_text(
+        "# Index\n\n## Files\n\n"
+        + render_index_table(
+            [
+                IndexRow("10_context/pricing.md", "id1", "First", "always", "me"),
+                IndexRow("10_context/pricing.md", "id2", "Second", "never", "you"),
+                IndexRow("20_sources/contract.pdf", "id3", "Contract", "detail", "me"),
+            ]
+        ),
+        encoding="utf-8",
+    )
+    assert main(["--root", str(tree), "--write"]) == 0
+    assert (
+        "warning: duplicate index rows for 10_context/pricing.md (kept the first)"
+        in capsys.readouterr().err
+    )
+    rows = parse_index((tree / INDEX_FILE).read_text(encoding="utf-8"))
+    assert rows == [
+        IndexRow("10_context/pricing.md", "id1", "First", "always", "me"),
+        IndexRow("20_sources/contract.pdf", "id3", "Contract", "detail", "me"),
+    ]

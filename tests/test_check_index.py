@@ -180,3 +180,34 @@ def test_max_chars_flag_is_honoured(clean_tree: Path, capsys: pytest.CaptureFixt
     out = capsys.readouterr().out
     assert "TOO_LARGE 10_context/pricing.md" in out
     assert "limit 5" in out
+
+
+CP1252_INDEX = "# \xcdndice\n".encode("cp1252")
+
+
+def test_main_missing_context_dir_is_usage_error(
+    clean_tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (clean_tree / CONTEXT_DIR / "pricing.md").unlink()
+    (clean_tree / CONTEXT_DIR).rmdir()
+    assert main(["--root", str(clean_tree)]) == EXIT_USAGE
+    err = capsys.readouterr().err
+    assert CONTEXT_DIR in err
+    assert "not found" in err
+
+
+def test_main_missing_sources_dir_is_usage_error(
+    clean_tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (clean_tree / SOURCES_DIR / "pricing.pdf").unlink()
+    (clean_tree / SOURCES_DIR).rmdir()
+    assert main(["--root", str(clean_tree)]) == EXIT_USAGE
+    assert SOURCES_DIR in capsys.readouterr().err
+
+
+def test_main_non_utf8_index_is_usage_error(
+    clean_tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (clean_tree / INDEX_FILE).write_bytes(CP1252_INDEX)
+    assert main(["--root", str(clean_tree)]) == EXIT_USAGE
+    assert "is not readable as UTF-8 text" in capsys.readouterr().err

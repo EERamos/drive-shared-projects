@@ -5,12 +5,14 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+import pytest
 from hypothesis import assume, given
 from hypothesis import strategies as st
 
 from common import (
     CONTEXT_DIR,
     ID_PLACEHOLDER,
+    INDEX_FILE,
     INDEX_HEADER,
     INDEX_SEPARATOR,
     SOURCES_DIR,
@@ -21,9 +23,11 @@ from common import (
     Mode,
     fill_template,
     first_heading,
+    missing_project_paths,
     normalize_stem,
     parse_args_or_exit,
     parse_index,
+    read_index_or_error,
     read_text,
     relative_posix,
     render_index_table,
@@ -261,3 +265,57 @@ def test_replace_index_table_leaves_an_unrelated_five_column_table_intact() -> N
     assert "10_context/a.md" not in out
     assert "| 10_context/b.md | id2 | S2 | W2 | O2 |" in out
     assert out.startswith("# Doc\n\n")
+
+
+CP1252_INDEX = "Resumen del a\xf1o\n".encode("cp1252")
+
+
+def test_exit_code_refused_is_an_alias_of_findings() -> None:
+    assert (ExitCode.REFUSED, ExitCode.FINDINGS) == (1, 1)
+    assert ExitCode(1).name == "FINDINGS"
+    assert list(ExitCode) == [ExitCode.OK, ExitCode.FINDINGS, ExitCode.USAGE]
+
+
+def test_read_index_or_error_returns_the_text(tmp_path: Path) -> None:
+    path = tmp_path / INDEX_FILE
+    path.write_text("# Index\n", encoding="utf-8")
+    assert read_index_or_error(path) == "# Index\n"
+
+
+def test_read_index_or_error_reports_a_non_utf8_file(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = tmp_path / INDEX_FILE
+    path.write_bytes(CP1252_INDEX)
+    assert read_index_or_error(path) == 2
+    err = capsys.readouterr().err
+    assert "is not readable as UTF-8 text" in err
+    assert INDEX_FILE in err
+
+
+def test_read_index_or_error_reports_a_missing_file(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert read_index_or_error(tmp_path / INDEX_FILE) == 2
+    assert "is not readable as UTF-8 text" in capsys.readouterr().err
+
+
+def test_missing_project_paths_is_empty_for_a_complete_tree(tmp_path: Path) -> None:
+    (tmp_path / INDEX_FILE).write_text("# Index\n", encoding="utf-8")
+    (tmp_path / CONTEXT_DIR).mkdir()
+    (tmp_path / SOURCES_DIR).mkdir()
+    assert missing_project_paths(tmp_path) == []
+
+
+def test_missing_project_paths_lists_every_absent_requirement(tmp_path: Path) -> None:
+    assert [p.name for p in missing_project_paths(tmp_path)] == [
+        INDEX_FILE,
+        CONTEXT_DIR,
+        SOURCES_DIR,
+    ]
+
+
+def test_missing_project_paths_lists_only_the_absent_ones(tmp_path: Path) -> None:
+    (tmp_path / INDEX_FILE).write_text("# Index\n", encoding="utf-8")
+    (tmp_path / CONTEXT_DIR).mkdir()
+    assert [p.name for p in missing_project_paths(tmp_path)] == [SOURCES_DIR]

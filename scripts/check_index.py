@@ -15,7 +15,8 @@ Findings:
 Every file in 10_context is read as UTF-8, whatever its extension, because Claude has
 to read it too: the size cap applies to all of them and an unreadable one is a finding,
 never a traceback.
-Exit codes: 0 clean, 1 findings, 2 usage error.
+Exit codes: 0 clean, 1 findings, 2 usage error (01_INDEX.md, 10_context or 20_sources
+missing, or the index is not UTF-8 text).
 """
 
 from __future__ import annotations
@@ -34,9 +35,11 @@ from common import (
     INDEX_FILE,
     SOURCES_DIR,
     ExitCode,
+    missing_project_paths,
     normalize_stem,
     parse_args_or_exit,
     parse_index,
+    read_index_or_error,
     read_text,
     scan_files,
 )
@@ -134,9 +137,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         return parsed
     args = parsed
     root: Path = args.root
-    if not (root / INDEX_FILE).is_file():
-        print(f"error: {root / INDEX_FILE} not found", file=sys.stderr)
+    missing = missing_project_paths(root)
+    if missing:
+        for path in missing:
+            print(f"error: {path} not found", file=sys.stderr)
         return EXIT_USAGE
+    index_text = read_index_or_error(root / INDEX_FILE)
+    if isinstance(index_text, int):
+        return index_text
     findings = check(root, max_chars=args.max_chars)
     if not findings:
         print("OK: index and folder are consistent")

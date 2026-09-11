@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import sys
 import unicodedata
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -34,10 +35,15 @@ _PLACEHOLDER = re.compile(r"\{\{([A-Z_]+)\}\}")
 
 
 class ExitCode(IntEnum):
-    """Exit codes shared by the three command line scripts."""
+    """Exit codes shared by the three command line scripts.
+
+    REFUSED is an alias of FINDINGS: both mean "the script ran and says no", which
+    init_project reports when it will not write into the target folder.
+    """
 
     OK = 0
     FINDINGS = 1
+    REFUSED = 1
     USAGE = 2
 
 
@@ -147,7 +153,12 @@ def _index_table_span(lines: Sequence[str]) -> tuple[int, int] | None:
 
 
 def parse_index(text: str) -> list[IndexRow]:
-    """Return the data rows of the first five-column Markdown table in `text`."""
+    """Return the data rows of the index table in `text`.
+
+    The index table is the block that starts with `INDEX_HEADER`; when no block
+    carries that header, the first block with five-column rows is read instead.
+    The header and separator lines are skipped, and empty when there is no table.
+    """
     lines = _split_lines(text)
     span = _index_table_span(lines)
     if span is None:
@@ -248,6 +259,33 @@ def parse_args_or_exit(
         return parser.parse_args(argv)
     except SystemExit as exc:
         return ExitCode.USAGE if exc.code else ExitCode.OK
+
+
+def missing_project_paths(root: Path) -> list[Path]:
+    """Required paths of a project folder that are absent, in a fixed order.
+
+    Those are 01_INDEX.md and the two scanned folders. A script that works from
+    half a tree would report every missing file as a finding, or drop every row it
+    cannot see, so both CLIs stop instead.
+    """
+    missing: list[Path] = []
+    index_path = root / INDEX_FILE
+    if not index_path.is_file():
+        missing.append(index_path)
+    missing.extend(root / sub for sub in SCANNED_DIRS if not (root / sub).is_dir())
+    return missing
+
+
+def read_index_or_error(path: Path) -> str | int:
+    """Read the index file, or report why it cannot be read and return `ExitCode.USAGE`.
+
+    An index saved in a legacy encoding is a setup problem, not a traceback.
+    """
+    try:
+        return read_text(path)
+    except (UnicodeDecodeError, OSError) as exc:
+        print(f"error: {path} is not readable as UTF-8 text: {exc}", file=sys.stderr)
+        return ExitCode.USAGE
 
 
 def read_text(path: Path) -> str:
