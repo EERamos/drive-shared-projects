@@ -156,7 +156,8 @@ Each script is a module with a `main(argv) -> int` and a CLI entry point.
   non-empty directory. Exit 0 on success, 2 on bad arguments, 1 on refusal.
 - `build_index.py --root DIR [--write]`
   Scans `10_context` and `20_sources`, emits index rows (file, ID placeholder
-  or existing ID, first heading as summary, size). Without `--write` prints to
+  or existing ID, first heading as summary). Sizes are checked by
+  `check_index.py`, not stored in the index. Without `--write` prints to
   stdout; with it, merges into `01_INDEX.md` preserving rows that already
   carry a Drive ID and a human-written summary.
 - `check_index.py --root DIR [--max-chars 50000]`

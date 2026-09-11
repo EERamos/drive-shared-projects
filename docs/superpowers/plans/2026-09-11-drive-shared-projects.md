@@ -1677,8 +1677,12 @@ All notable changes to this project are documented here. The format follows Keep
 
 ```powershell
 # Copies the skill into the user's Claude Code skills folder.
+# Usage: .\install.ps1 [-Destination <folder>]
+param(
+    [string]$Destination = (Join-Path $HOME ".claude\skills\drive-shared-projects")
+)
 $ErrorActionPreference = "Stop"
-$dest = Join-Path $HOME ".claude\skills\drive-shared-projects"
+$dest = $Destination
 New-Item -ItemType Directory -Force -Path $dest | Out-Null
 foreach ($item in @("SKILL.md", "templates", "references", "scripts")) {
     $src = Join-Path $PSScriptRoot $item
@@ -1692,9 +1696,10 @@ Write-Host "Installed drive-shared-projects to $dest"
 ```bash
 #!/usr/bin/env bash
 # Copies the skill into the user's Claude Code skills folder.
+# Usage: ./install.sh [destination-folder]
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-dest="$HOME/.claude/skills/drive-shared-projects"
+dest="${1:-$HOME/.claude/skills/drive-shared-projects}"
 mkdir -p "$dest"
 for item in SKILL.md templates references scripts; do
   cp -R "$here/$item" "$dest/"
@@ -1702,10 +1707,12 @@ done
 echo "Installed drive-shared-projects to $dest"
 ```
 
-- [ ] **Step 5: Smoke-test the PowerShell installer into a temp HOME**
+- [ ] **Step 5: Smoke-test both installers into a temp folder**
 
-Run (PowerShell): `$env:HOME = "$env:TEMP\dsp-home"; .\install.ps1; Get-ChildItem "$env:TEMP\dsp-home\.claude\skills\drive-shared-projects"`
-Expected: SKILL.md, templates, references, scripts listed. Then remove the temp folder: `Remove-Item -Recurse -Force "$env:TEMP\dsp-home"`.
+PowerShell `$HOME` is an automatic variable and ignores `$env:HOME`, so never test by overriding HOME; use the destination parameter.
+Run (PowerShell): `.\install.ps1 -Destination "$env:TEMP\dsp-test\ps"; Get-ChildItem "$env:TEMP\dsp-test\ps"`
+Run (Git Bash): `./install.sh "$TEMP/dsp-test/sh" && ls "$TEMP/dsp-test/sh"`
+Expected: SKILL.md, templates, references, scripts listed in both. Then remove the temp folder: `Remove-Item -Recurse -Force "$env:TEMP\dsp-test"`.
 
 - [ ] **Step 6: Commit**
 
@@ -1885,6 +1892,11 @@ Expected: `no emoji` and `no placeholders` (the string `TODO-ID` is allowed; the
 Run: `git status --short && git log --oneline`
 Expected: no uncommitted changes; one commit per task plus the two spec commits.
 
-- [ ] **Step 4: Report**
+- [ ] **Step 4: Install the final skill for the user**
+
+Run (PowerShell): `.\install.ps1`
+Expected: `Installed drive-shared-projects to C:\Users\edgar\.claude\skills\drive-shared-projects`. Then `Get-ChildItem "$HOME\.claude\skills\drive-shared-projects"` lists SKILL.md, templates, references, scripts, and `git -C . diff --no-index --stat SKILL.md "$HOME\.claude\skills\drive-shared-projects\SKILL.md"` prints nothing (identical).
+
+- [ ] **Step 5: Report**
 
 Summarize for the user: files created, test count, gate results, and the two items that stay pending by design: pushing the repo to GitHub as public, and the write-side connector checklist that needs approval to create a test folder in their Drive.
