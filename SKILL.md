@@ -17,18 +17,33 @@ Replicates a Claude shared project with a Google Drive folder and the Drive conn
 
 Templates for every document live in `templates/`. Governance per mode is in `references/modes.md`. Connector facts are in `references/drive-connector-behavior.md`; read it before the first write to a folder.
 
+## What the connector can and cannot do
+
+This shapes every workflow below, so read it first.
+
+- Claude can create folders and files, and can read them. A new file is created in a folder by passing that folder's ID as the parent, and the create result carries the new file's ID.
+- Claude cannot change the content of a file that already exists. The connector's update operation only renames a file or moves it to another folder. There is no in-place edit and no append.
+- Uploading the document again is not an update: it creates a second file with a new ID, orphaning the Drive IDs block and every index row that names the old one. Never do it.
+
+So every change to an existing document, an index row, a log entry, an edit to 00_INSTRUCTIONS, takes one of two paths:
+
+- docs format: Claude proposes the exact text and says where it goes; the user pastes it into the Doc; Claude then re-reads the file by ID to confirm the change landed.
+- md format in Claude Code: Claude applies the change to the local mirror and the sync carries it to Drive; Claude re-reads by ID to confirm.
+
+New files are different: Claude creates those itself and reports the ID it got back.
+
 ## Local mirror and formats
 
 The scripts never touch Drive. They operate on a local copy of the project folder, so what that copy means depends on the format chosen at setup.
 
-- In md format the local copy is authoritative: a git repository or a vault that syncs to Drive. The scripts are the normal maintenance path; you edit locally and the sync carries the change to Drive.
-- In docs format the living documents are the Google Docs in Drive. The local tree is only the seed produced at setup, so maintenance runs through the connector: list 10_context and 20_sources by their folder IDs and compare with the index.
-- Appending a log entry in md format means rewriting the whole .md file through the connector, because there is no append operation. Read it, add the entry, write the file back.
-- Updating an existing file keeps its Drive ID. Uploading a new file instead of updating creates a new ID and orphans every row and instruction that names the old one, so always update in place.
+- In md format the local copy is authoritative: a git repository or a vault that syncs to Drive. The scripts are the normal maintenance path; you edit locally and the sync carries the change to Drive. This is the only path where Claude can change an existing document without the user pasting.
+- In docs format the living documents are the Google Docs in Drive. The local tree is only the seed produced at setup, so maintenance runs through the connector: list 10_context and 20_sources by their folder IDs, compare with the index, and hand the user the exact text of each fix to paste.
+- In md format outside Claude Code there is no mirror to edit, so md projects fall back to the same paste path as docs.
 
 ## Rules that apply in every workflow
 
 - Propose, then write. Show the exact text of any index row, extract or log entry and wait for the user's confirmation before writing it to Drive.
+- Create, never overwrite. Claude creates new files and folders; changes to an existing file are pasted by the user or made in the local mirror, then re-read by ID to confirm.
 - Read by ID. Once an ID is known, never search by title.
 - One source of truth per topic: the working version lives in 10_context. 20_sources keeps each source as it arrived.
 - Flat lists, no emoji, plain table cells. The connector corrupts the rest.
@@ -48,10 +63,11 @@ Trigger: the user wants to create a shared project folder.
 2. Build the documents from `templates/`:
    - In Claude Code: run `python <skill folder>/scripts/init_project.py --name "<name>" --mode <mode> --format <docs|md> --owner "<owner>" --out <local folder>` and use the generated files as the content. The script writes a .gitkeep in 10_context and 20_sources; those files stay local and are never uploaded to Drive.
    - Elsewhere: fill the placeholders of `templates/00_INSTRUCTIONS.md` (inject `templates/modes/<mode>.md` at `{{MODE_RULES}}`), `templates/01_INDEX.md` and `templates/90_LOG.md` yourself. Placeholders: NAME, MODE, FORMAT, DATE (ISO), OWNER. The mode fragment itself contains `{{OWNER}}`, so substitute the placeholders inside the fragment too before injecting it.
-3. Create in Drive, with the connector: the project folder, the subfolders 10_context and 20_sources, and the three documents (as Google Docs in docs format, as .md files in md format). Record every ID as you go.
-4. Fill the "Drive IDs" block of 00_INSTRUCTIONS with the real IDs of the project folder, the two subfolders and the three documents, replacing every TODO-ID, and write it back. Every later workflow reads by those IDs.
-5. Fill `templates/project-instruction.md` with the three document IDs and give the block to the user to paste into their Claude project. In duo or group mode, remind them that every member pastes the same block and needs the Drive connector active.
-6. Apply the sharing rule of the mode from `references/modes.md`.
+3. Create the folders in Drive, in this order, because a file can only be placed in a folder that already exists: the project folder first (parent: My Drive or wherever the user wants it), then 10_context and 20_sources with the project folder's ID as their parent. Record the three IDs from the create results.
+4. Create the documents, each with the project folder's ID as its parent, as Google Docs in docs format and as plain .md files in md format (in md format set the flag that disables conversion to a Google type, or the .md becomes a Doc). Create 01_INDEX and 90_LOG first and record their IDs; create 00_INSTRUCTIONS last, with the "Drive IDs" block already filled in for the project folder, the two subfolders, 01_INDEX and 90_LOG. Take every ID from the create result, or, for a file the user made, from the long identifier in the middle of the file's URL in the browser.
+5. Only 00_INSTRUCTIONS' own ID is still TODO-ID, because the file had to exist before it had one. Give the user that ID and ask them to paste it over the TODO-ID on that one line. Then read 00_INSTRUCTIONS by ID and confirm the block is complete. Every later workflow reads by those IDs.
+6. Fill `templates/project-instruction.md` with the three document IDs and give the block to the user to paste into their Claude project. In duo or group mode, remind them that every member pastes the same block and needs the Drive connector active.
+7. Apply the sharing rule of the mode from `references/modes.md`.
 
 ## Workflow 2: Session start
 
@@ -66,10 +82,12 @@ Trigger: any chat inside a project that has this skill's instruction block.
 
 Trigger: the user adds or mentions a new source document.
 
-1. Confirm the source is in 20_sources (or ask the user to put it there) and get its Drive ID.
+1. Confirm the source is in 20_sources (or ask the user to put it there) and get its Drive ID: from the create result if Claude uploaded it, or from the file's URL in the browser if the user dropped it there.
 2. Read it. Write an extract following `templates/source-extract.md`: what it is, key facts with units and dates, where the detail lives, open questions. Keep the `Source:` line; it is how the maintenance check knows the extract and the source are the same topic.
 3. Propose the extract text and the two index rows (extract in 10_context, source in 20_sources). Wait for confirmation.
-4. Write the extract to 10_context, add both rows to 01_INDEX, refresh the "Last updated" line of 01_INDEX, and report the new IDs.
+4. Create the extract with the 10_context folder ID from the Drive IDs block as its parent, and take the new file's ID from the create result.
+5. The index already exists, so Claude cannot write the rows into it. Give the user the two rows as exact text, with the extract's new ID filled in, to paste at the end of the index table, together with a refreshed "Last updated" line. In md format in Claude Code, apply both to the local mirror instead and let the sync carry them.
+6. Re-read 01_INDEX by ID and confirm both rows are there. Report the extract's ID.
 
 ## Workflow 4: Record a decision
 
@@ -83,8 +101,9 @@ Trigger: the chat reaches a decision that changes how the project works or what 
    - Author: name (required in duo and group).
 
 2. If the decision came from something going wrong, also propose a lessons entry: Symptom, Cause, Rule.
-3. Wait for confirmation. Append the decision at the end of the "Decisions" section of 90_LOG, and a lessons entry at the end of the "Lessons" section. Never touch earlier entries.
-4. In group mode, a change to 00_INSTRUCTIONS needs a log entry and an owner's approval before the edit.
+3. Wait for confirmation. 90_LOG already exists, so Claude cannot append to it: hand the user the entry as exact text and tell them to paste it at the end of the "Decisions" section, or a lessons entry at the end of the "Lessons" section. In md format in Claude Code, apply it to the local mirror instead. Never touch earlier entries.
+4. Read 90_LOG by ID afterwards and confirm the entry is in the right section and nothing above it changed.
+5. In group mode, a change to 00_INSTRUCTIONS needs a log entry and an owner's approval before the edit. That edit is a paste as well.
 
 ## Workflow 5: Maintenance
 
@@ -103,7 +122,9 @@ In Claude Code, run the scripts against the local mirror. The working directory 
 - `python <skill folder>/scripts/build_index.py --root <local mirror>` prints the table it would write. Never run it with `--write` directly: it drops the rows of files that no longer exist. Show the printed table next to the current one, name the rows that would disappear, and get confirmation first. `--write` lists the dropped rows on stderr, but that happens after the file is already rewritten, so compare the two tables beforehand.
 - Only then run the same command with `--write`.
 
-Refresh the "Last updated" line of 01_INDEX with every change. Propose the fixes; write them after confirmation.
+Whatever the findings are, the fixes to 01_INDEX and 00_INSTRUCTIONS are changes to files that already exist. In docs format, hand the user the corrected table (or the corrected lines) to paste and then re-read the file by ID to confirm. In md format in Claude Code, apply them to the local mirror and let the sync carry them. Missing extracts are the exception: those are new files, so Claude creates them itself with the 10_context folder ID as parent.
+
+Refresh the "Last updated" line of 01_INDEX with every change. Propose the fixes; apply them after confirmation.
 
 ## Any assistant can read the folder
 

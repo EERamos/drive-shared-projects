@@ -1,4 +1,4 @@
-# Phase 2 — Obsidian vault as the home of a shared project
+# Phase 2 - Obsidian vault as the home of a shared project
 
 Date: 2026-09-11
 Status: design outline, approved direction (Edgar), not yet implemented
@@ -50,7 +50,7 @@ published copy.
 
 ## 5. What changes in the skill
 
-- `SKILL.md`: a "vault" variant of Workflow 1 (Setup). Third setup question
+- `SKILL.md`: a "vault" variant of Workflow 1 (Setup). Fifth setup question
   when format is `md`: "Does this project live in an Obsidian vault?" If yes,
   the folder is created inside the vault path and Drive sync is confirmed
   before the IDs are collected.

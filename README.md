@@ -11,7 +11,7 @@ A Claude skill that turns a Google Drive folder into the equivalent of a shared 
 
 ## Works with any assistant
 
-The folder is plain Drive content: Google Docs written in Markdown, .md files and your originals. Nothing in it is specific to Claude. Any assistant that can read your Drive can be pointed at the same folder with the same instruction block. That covers ChatGPT, Gemini, Grok, Copilot and a local model behind a Drive tool. A team can therefore mix assistants and still share one knowledge base and one decision log. Use `templates/assistant-instruction-generic.md` for assistants other than Claude. The skill itself (the setup, ingest and maintenance workflows) runs in Claude, and the other assistants consume what it maintains.
+The folder is plain Drive content: Google Docs written in Markdown, .md files and your sources. Nothing in it is specific to Claude. Any assistant that can read your Drive can be pointed at the same folder with the same instruction block. That covers ChatGPT, Gemini, Grok, Copilot and a local model behind a Drive tool. A team can therefore mix assistants and still share one knowledge base and one decision log. Use `templates/assistant-instruction-generic.md` for assistants other than Claude. The skill itself (the setup, ingest and maintenance workflows) runs in Claude, and the other assistants consume what it maintains.
 
 ## Install
 
@@ -47,7 +47,7 @@ The installers copy over what is already installed; they do not remove files tha
 
 ### claude.ai and Cowork
 
-Zip the whole `drive-shared-projects` folder, so the archive contains `drive-shared-projects/SKILL.md` and not a loose `SKILL.md`, and upload it under Settings, Skills. On Windows: right click the folder, Send to, Compressed (zipped) folder. On macOS: right click the folder, Compress. Keep the folder named `drive-shared-projects`; it has to match the `name` in the SKILL.md frontmatter. Scripts are not used there; the skill falls back to doing everything through the connector.
+Upload a zip that contains only what these environments use. Make a new folder named `drive-shared-projects` somewhere outside the clone and copy three things into it: `SKILL.md`, `templates/` and `references/`. That keeps `.git`, `docs/`, `tests/`, `examples/` and `scripts/` out of the archive. Then zip that folder, so the archive contains `drive-shared-projects/SKILL.md` and not a loose `SKILL.md`, and upload it under Settings, Skills. On Windows: right click the folder, Send to, Compressed (zipped) folder. On macOS: right click the folder, Compress. Keep the folder named `drive-shared-projects`; it has to match the `name` in the SKILL.md frontmatter. Scripts are not used there; the skill falls back to doing everything through the connector.
 
 Every member of a shared project installs the skill on their own account and needs the Google Drive connector enabled.
 
@@ -58,19 +58,39 @@ Every member of a shared project installs the skill on their own account and nee
 2. It creates the folder, the subfolders and the three documents in your Drive and hands you an instruction block with the real file IDs.
 3. Create a Claude project (or a Cowork task) and paste the block into its instructions.
 4. Share the Drive folder following the mode's sharing rule. Every member pastes the same block into their own project.
-5. Drop the first original into 20_sources and ask Claude to ingest it. From then on every chat starts by reading the instructions and the index.
+5. Drop the first source into 20_sources and ask Claude to ingest it. From then on every chat starts by reading the instructions and the index.
+
+Claude creates the folders and every new document, but the Drive connector cannot rewrite a file that already exists, so index rows and log entries come back to you as text to paste (Claude then re-reads the file to confirm). In Claude Code with a local mirror the skill can apply those changes for you: see the Scripts section below for that path.
 
 ## Scripts (Claude Code only)
 
-All scripts are standard library, Python 3.10 or newer.
+All scripts are standard library, Python 3.10 or newer. They run against a local copy of the project folder and never touch Drive. The skill calls them from where the installer put them, `~/.claude/skills/drive-shared-projects`, because the working directory is your own project rather than this repository.
+
+Create the tree:
 
 ```bash
-python scripts/init_project.py --name "Quant Research" --mode duo --format docs --owner "Ana" --out ./quant-research
-python scripts/build_index.py --root ./quant-research --write
-python scripts/check_index.py --root ./quant-research
+python ~/.claude/skills/drive-shared-projects/scripts/init_project.py --name "Quant Research" --mode duo --format docs --owner "Ana" --out ./quant-research
 ```
 
-`check_index.py` returns 0 when the index and the folder agree, 1 with a list of findings, 2 on a usage error. It is the deterministic gate for the maintenance workflow.
+Check it. This is the deterministic gate for the maintenance workflow: `check_index.py` returns 0 when the index and the folder agree, 1 with a list of findings, 2 on a usage error.
+
+```bash
+python ~/.claude/skills/drive-shared-projects/scripts/check_index.py --root ./quant-research
+```
+
+Refresh the index. Always print first and read what comes out:
+
+```bash
+python ~/.claude/skills/drive-shared-projects/scripts/build_index.py --root ./quant-research
+```
+
+That prints the table it would write, keeping the Drive IDs, summaries and owners already in the index. Compare it with the current table before going further, because rows for files that no longer exist are dropped. Once the printed table is what you want, write it:
+
+```bash
+python ~/.claude/skills/drive-shared-projects/scripts/build_index.py --root ./quant-research --write
+```
+
+`--write` lists the rows it removed on stderr, but by then the file is already rewritten, which is why the print step comes first.
 
 ## Repository layout
 

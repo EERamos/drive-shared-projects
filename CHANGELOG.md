@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows Keep
 
 ## [Unreleased]
 
+### Changed
+
+- Documented that the Drive connector cannot edit file content; index rows and log entries are pasted by the user in docs format.
+
 ## [0.1.0] - 2026-09-11
 
 ### Added
