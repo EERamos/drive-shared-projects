@@ -1,3 +1,5 @@
+# Metadata only: this repo is not installable. The scripts in scripts/ are
+# standalone modules run with python scripts/<name>.py, not an importable package.
 [project]
 name = "drive-shared-projects"
 version = "0.1.0"

@@ -12,10 +12,6 @@ Append-only. Newest entry at the bottom. Never edit or delete an entry; add a ne
 
 ## Lessons
 
-Write here only when something went wrong and produced a rule. Entry format:
+Write here only when something went wrong and produced a rule.
 
-### YYYY-MM-DD - short title
-
-- Symptom: what was observed.
-- Cause: why it happened.
-- Rule: what everyone does from now on.
+Entry format: a level-3 heading with the date and a short title, then three flat bullets: Symptom, what was observed. Cause, why it happened. Rule, what everyone does from now on.

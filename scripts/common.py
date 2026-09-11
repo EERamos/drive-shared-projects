@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Mapping
+import unicodedata
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -22,7 +23,7 @@ INDEX_SEPARATOR = "| --- | --- | --- | --- | --- |"
 INDEX_COLUMNS = 5
 
 _CELL_SPLIT = re.compile(r"(?<!\\)\|")
-_HEADING = re.compile(r"^#{1,6}\s+(.+?)\s*$", re.MULTILINE)
+_HEADING = re.compile(r"^#{1,6}[ \t]+(.+?)\s*$", re.MULTILINE)
 _LEADING_PREFIX = re.compile(r"^[\d_\-\s]+")
 _NON_ALNUM = re.compile(r"[^a-z0-9]+")
 _PLACEHOLDER = re.compile(r"\{\{([A-Z_]+)\}\}")
@@ -70,15 +71,62 @@ def _is_separator(cell: str) -> bool:
     return cell != "" and set(cell) <= {"-", ":"}
 
 
+def _split_lines(text: str) -> list[str]:
+    """Split `text` on newlines only, keeping the newline on every line but the last.
+
+    Unlike `str.splitlines` this ignores exotic line boundaries such as form feed,
+    so a table cell that contains one stays inside its row. `"".join` restores `text`.
+    """
+    parts = text.split("\n")
+    lines = [part + "\n" for part in parts[:-1]]
+    if parts[-1] != "":
+        lines.append(parts[-1])
+    return lines
+
+
+def _is_table_line(line: str) -> bool:
+    return line.lstrip().startswith("|")
+
+
+def _row_cells(line: str) -> list[str] | None:
+    """Split one table line into unescaped cells, or None if it is not a table row."""
+    stripped = line.strip()
+    if not stripped.startswith("|") or not stripped.endswith("|"):
+        return None
+    return [_unescape_cell(c) for c in _CELL_SPLIT.split(stripped)[1:-1]]
+
+
+def _index_table_span(lines: Sequence[str]) -> tuple[int, int] | None:
+    """Return the [start, end) range of the first table block that holds index rows.
+
+    A table block is a contiguous run of lines starting with `|`; it is the index
+    when at least one of its rows has exactly `INDEX_COLUMNS` cells.
+    """
+    position = 0
+    while position < len(lines):
+        if not _is_table_line(lines[position]):
+            position += 1
+            continue
+        start = position
+        while position < len(lines) and _is_table_line(lines[position]):
+            position += 1
+        parsed = (_row_cells(line) for line in lines[start:position])
+        if any(cells is not None and len(cells) == INDEX_COLUMNS for cells in parsed):
+            return start, position
+    return None
+
+
 def parse_index(text: str) -> list[IndexRow]:
     """Return the data rows of the first five-column Markdown table in `text`."""
+    lines = _split_lines(text)
+    span = _index_table_span(lines)
+    if span is None:
+        return []
+    start, end = span
     rows: list[IndexRow] = []
-    for line in text.splitlines():
-        stripped = line.strip()
-        if not stripped.startswith("|") or not stripped.endswith("|"):
-            continue
-        cells = [_unescape_cell(c) for c in _CELL_SPLIT.split(stripped)[1:-1]]
-        if len(cells) != INDEX_COLUMNS:
+    for line in lines[start:end]:
+        cells = _row_cells(line)
+        if cells is None or len(cells) != INDEX_COLUMNS:
             continue
         if cells[0] == "File" or _is_separator(cells[0]):
             continue
@@ -93,18 +141,17 @@ def render_index_table(rows: Iterable[IndexRow]) -> str:
 
 
 def replace_index_table(text: str, new_table: str) -> str:
-    """Replace the first contiguous block of table lines in `text` with `new_table`.
+    """Replace the index table block of `text` with `new_table`.
 
-    If `text` has no table, append `new_table` after a blank line.
+    The block is the one `parse_index` reads, so other tables are left alone.
+    If `text` has no index table, append `new_table` after a blank line.
     """
-    lines = text.splitlines(keepends=True)
-    start = next((i for i, ln in enumerate(lines) if ln.lstrip().startswith("|")), None)
-    if start is None:
+    lines = _split_lines(text)
+    span = _index_table_span(lines)
+    if span is None:
         sep = "" if text.endswith("\n\n") else ("\n" if text.endswith("\n") else "\n\n")
         return text + sep + new_table
-    end = start
-    while end < len(lines) and lines[end].lstrip().startswith("|"):
-        end += 1
+    start, end = span
     return "".join(lines[:start]) + new_table + "".join(lines[end:])
 
 
@@ -115,9 +162,16 @@ def first_heading(text: str) -> str | None:
 
 
 def normalize_stem(path: str) -> str:
-    """Lower-case file stem without numeric prefix, punctuation collapsed to '-'."""
-    stem = Path(path).stem.lower()
-    stem = _LEADING_PREFIX.sub("", stem)
+    """Lower-case file stem without numeric prefix, punctuation collapsed to '-'.
+
+    Accents are folded, so "Analisis" and its accented spelling give the same stem.
+    A stem that is only a numeric prefix, such as "2024", is kept as it is.
+    """
+    decomposed = unicodedata.normalize("NFKD", Path(path).stem)
+    stem = "".join(c for c in decomposed if not unicodedata.combining(c)).lower()
+    without_prefix = _LEADING_PREFIX.sub("", stem)
+    if without_prefix != "":
+        stem = without_prefix
     return _NON_ALNUM.sub("-", stem).strip("-")
 
 
@@ -137,8 +191,10 @@ def relative_posix(root: Path, path: Path) -> str:
 
 
 def read_text(path: Path) -> str:
+    """Read `path` as UTF-8 text."""
     return path.read_text(encoding="utf-8")
 
 
 def write_text(path: Path, text: str) -> None:
+    """Write `text` to `path` as UTF-8 with LF line endings on every platform."""
     path.write_text(text, encoding="utf-8", newline="\n")
