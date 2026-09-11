@@ -6,9 +6,15 @@ Usage:
 Findings:
     MISSING_ROW      a file under 10_context or 20_sources has no index row
     STALE_ROW        an index row points to a file that does not exist
+    DUPLICATE_ROW    the same file is listed by more than one index row
+    UNREADABLE       a file in 10_context is not UTF-8 text, or could not be opened
     TOO_LARGE        a file in 10_context exceeds --max-chars characters
     DUPLICATE_TOPIC  a 10_context file shares its topic with a 20_sources file
                      and has no "Source:" line pointing back to it
+
+Every file in 10_context is read as UTF-8, whatever its extension, because Claude has
+to read it too: the size cap applies to all of them and an unreadable one is a finding,
+never a traceback.
 Exit codes: 0 clean, 1 findings, 2 usage error.
 """
 
@@ -16,30 +22,35 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
 
-from build_index import scan_files
 from common import (
     CONTEXT_DIR,
     DEFAULT_MAX_CHARS,
     INDEX_FILE,
     SOURCES_DIR,
+    ExitCode,
     normalize_stem,
+    parse_args_or_exit,
     parse_index,
     read_text,
+    scan_files,
 )
 
-EXIT_OK = 0
-EXIT_FINDINGS = 1
-EXIT_USAGE = 2
+EXIT_OK = ExitCode.OK
+EXIT_FINDINGS = ExitCode.FINDINGS
+EXIT_USAGE = ExitCode.USAGE
 
 
 class FindingKind(Enum):
     MISSING_ROW = auto()
     STALE_ROW = auto()
+    DUPLICATE_ROW = auto()
+    UNREADABLE = auto()
     TOO_LARGE = auto()
     DUPLICATE_TOPIC = auto()
 
@@ -70,25 +81,30 @@ def check(root: Path, max_chars: int = DEFAULT_MAX_CHARS) -> list[Finding]:
     """Return every inconsistency between the index and the folder, in a stable order."""
     findings: list[Finding] = []
     files = scan_files(root)
-    indexed = [row.file for row in parse_index(read_text(root / INDEX_FILE))]
+    rows = [row.file for row in parse_index(read_text(root / INDEX_FILE))]
+    indexed = set(rows)
     on_disk = set(files)
 
     for rel in files:
         if rel not in indexed:
             findings.append(Finding(FindingKind.MISSING_ROW, rel, "file has no index row"))
-    for rel in indexed:
+    for rel in dict.fromkeys(rows):
         if rel not in on_disk:
             findings.append(Finding(FindingKind.STALE_ROW, rel, "row exists but file is missing"))
+    for rel, count in sorted(Counter(rows).items()):
+        if count > 1:
+            findings.append(Finding(FindingKind.DUPLICATE_ROW, rel, f"listed {count} times"))
 
     sources_by_topic: dict[str, list[str]] = {}
     for rel in _source_files(files):
         sources_by_topic.setdefault(normalize_stem(rel), []).append(rel)
 
     for rel in _context_files(files):
-        path = root / rel
-        if path.suffix.lower() not in {".md", ".txt"}:
+        try:
+            text = read_text(root / rel)
+        except (UnicodeDecodeError, OSError) as exc:
+            findings.append(Finding(FindingKind.UNREADABLE, rel, f"{type(exc).__name__}: {exc}"))
             continue
-        text = read_text(path)
         if len(text) > max_chars:
             findings.append(
                 Finding(FindingKind.TOO_LARGE, rel, f"{len(text)} chars, limit {max_chars}")
@@ -113,11 +129,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = build_parser()
-    try:
-        args = parser.parse_args(argv)
-    except SystemExit as exc:
-        return EXIT_USAGE if exc.code else EXIT_OK
+    parsed = parse_args_or_exit(build_parser(), argv)
+    if isinstance(parsed, int):
+        return parsed
+    args = parsed
     root: Path = args.root
     if not (root / INDEX_FILE).is_file():
         print(f"error: {root / INDEX_FILE} not found", file=sys.stderr)

@@ -2,24 +2,33 @@
 
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 
 from hypothesis import assume, given
 from hypothesis import strategies as st
 
 from common import (
+    CONTEXT_DIR,
     ID_PLACEHOLDER,
+    INDEX_HEADER,
+    INDEX_SEPARATOR,
+    SOURCES_DIR,
+    TEXT_SUFFIXES,
+    ExitCode,
     Format,
     IndexRow,
     Mode,
     fill_template,
     first_heading,
     normalize_stem,
+    parse_args_or_exit,
     parse_index,
     read_text,
     relative_posix,
     render_index_table,
     replace_index_table,
+    scan_files,
     write_text,
 )
 
@@ -176,3 +185,79 @@ def test_write_text_writes_lf_only(tmp_path: Path) -> None:
 
 def test_relative_posix_uses_forward_slashes(tmp_path: Path) -> None:
     assert relative_posix(tmp_path, tmp_path / "10_context" / "a.md") == "10_context/a.md"
+
+
+def test_exit_code_values_are_the_literal_codes() -> None:
+    assert (ExitCode.OK, ExitCode.FINDINGS, ExitCode.USAGE) == (0, 1, 2)
+
+
+def test_text_suffixes_holds_the_readable_extensions() -> None:
+    assert ".md" in TEXT_SUFFIXES
+    assert ".txt" in TEXT_SUFFIXES
+    assert ".pdf" not in TEXT_SUFFIXES
+
+
+def test_scan_files_finds_nested_files_with_forward_slashes(tmp_path: Path) -> None:
+    nested = tmp_path / CONTEXT_DIR / "sub" / "deeper"
+    nested.mkdir(parents=True)
+    (nested / "note.md").write_text("# Note\n", encoding="utf-8")
+    (tmp_path / CONTEXT_DIR / ".gitkeep").write_text("", encoding="utf-8")
+    (tmp_path / SOURCES_DIR).mkdir()
+    (tmp_path / SOURCES_DIR / "a.pdf").write_bytes(b"%PDF")
+    assert scan_files(tmp_path) == ["10_context/sub/deeper/note.md", "20_sources/a.pdf"]
+
+
+def test_scan_files_tolerates_missing_directories(tmp_path: Path) -> None:
+    assert scan_files(tmp_path) == []
+
+
+def _demo_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="demo")
+    parser.add_argument("--name", required=True)
+    return parser
+
+
+def test_parse_args_or_exit_returns_the_namespace() -> None:
+    parsed = parse_args_or_exit(_demo_parser(), ["--name", "x"])
+    assert isinstance(parsed, argparse.Namespace)
+    assert parsed.name == "x"
+
+
+def test_parse_args_or_exit_returns_usage_code_on_bad_arguments() -> None:
+    assert parse_args_or_exit(_demo_parser(), []) == 2
+
+
+def test_parse_args_or_exit_returns_ok_code_on_help() -> None:
+    assert parse_args_or_exit(_demo_parser(), ["--help"]) == 0
+
+
+def _table(rows: str) -> str:
+    return INDEX_HEADER + "\n" + INDEX_SEPARATOR + "\n" + rows
+
+
+def test_parse_index_prefers_the_header_anchored_table() -> None:
+    text = (
+        "# Doc\n\n"
+        "| a | b | c | d | e |\n"
+        "| --- | --- | --- | --- | --- |\n"
+        "| 1 | 2 | 3 | 4 | 5 |\n\n"
+        "## Files\n\n" + _table("| 10_context/a.md | id1 | S | W | O |\n")
+    )
+    assert parse_index(text) == [IndexRow("10_context/a.md", "id1", "S", "W", "O")]
+
+
+def test_replace_index_table_leaves_an_unrelated_five_column_table_intact() -> None:
+    text = (
+        "# Doc\n\n"
+        "| a | b | c | d | e |\n"
+        "| --- | --- | --- | --- | --- |\n"
+        "| 1 | 2 | 3 | 4 | 5 |\n\n"
+        "## Files\n\n" + _table("| 10_context/a.md | id1 | S | W | O |\n")
+    )
+    new_table = render_index_table([IndexRow("10_context/b.md", "id2", "S2", "W2", "O2")])
+    out = replace_index_table(text, new_table)
+    assert "| 1 | 2 | 3 | 4 | 5 |" in out
+    assert "| a | b | c | d | e |" in out
+    assert "10_context/a.md" not in out
+    assert "| 10_context/b.md | id2 | S2 | W2 | O2 |" in out
+    assert out.startswith("# Doc\n\n")

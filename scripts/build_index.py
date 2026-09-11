@@ -5,8 +5,10 @@ Usage:
     python scripts/build_index.py --root ./my-project --write   # rewrite the table in 01_INDEX.md
 
 Rows already in the index keep their Drive ID, summary, "when to read" and owner.
-Files that disappeared lose their row. New files get TODO-ID and the first heading as summary.
-Exit codes: 0 ok, 2 usage error (root or 01_INDEX.md missing).
+Files that disappeared lose their row; with --write the dropped rows are listed on stderr
+so the deletion is never silent. New files get TODO-ID and the first heading as summary;
+a file that is not UTF-8 text gets an empty summary instead of raising.
+Exit codes: 0 ok, 2 usage error (01_INDEX.md, 10_context or 20_sources missing).
 """
 
 from __future__ import annotations
@@ -17,45 +19,35 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from common import (
-    CONTEXT_DIR,
     ID_PLACEHOLDER,
     INDEX_FILE,
-    SOURCES_DIR,
+    SCANNED_DIRS,
+    TEXT_SUFFIXES,
+    ExitCode,
     IndexRow,
     first_heading,
+    parse_args_or_exit,
     parse_index,
     read_text,
-    relative_posix,
     render_index_table,
     replace_index_table,
+    scan_files,
     write_text,
 )
 
-EXIT_OK = 0
-EXIT_USAGE = 2
-
-_SCANNED_DIRS = (CONTEXT_DIR, SOURCES_DIR)
-_TEXT_SUFFIXES = {".md", ".txt"}
-
-
-def scan_files(root: Path) -> list[str]:
-    """Relative POSIX paths of every non-dot file under 10_context and 20_sources, sorted."""
-    found: list[str] = []
-    for sub in _SCANNED_DIRS:
-        base = root / sub
-        if not base.is_dir():
-            continue
-        for path in base.rglob("*"):
-            if path.is_file() and not path.name.startswith("."):
-                found.append(relative_posix(root, path))
-    return sorted(found)
+EXIT_OK = ExitCode.OK
+EXIT_USAGE = ExitCode.USAGE
 
 
 def _summary_for(root: Path, rel: str) -> str:
     path = root / rel
-    if path.suffix.lower() not in _TEXT_SUFFIXES:
+    if path.suffix.lower() not in TEXT_SUFFIXES:
         return ""
-    return first_heading(read_text(path)) or ""
+    try:
+        text = read_text(path)
+    except (UnicodeDecodeError, OSError):
+        return ""
+    return first_heading(text) or ""
 
 
 def scan(root: Path) -> list[IndexRow]:
@@ -86,6 +78,12 @@ def merge(existing: Sequence[IndexRow], scanned: Sequence[IndexRow]) -> list[Ind
     return merged
 
 
+def dropped_rows(existing: Sequence[IndexRow], scanned: Sequence[IndexRow]) -> list[str]:
+    """Files listed in the index that the scan did not find, in index order, without repeats."""
+    kept = {row.file for row in scanned}
+    return [file for file in dict.fromkeys(row.file for row in existing) if file not in kept]
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Print or refresh the 01_INDEX table.")
     parser.add_argument("--root", required=True, type=Path, help="Project folder.")
@@ -93,20 +91,39 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    parser = build_parser()
-    try:
-        args = parser.parse_args(argv)
-    except SystemExit as exc:
-        return EXIT_USAGE if exc.code else EXIT_OK
-    root: Path = args.root
+def _missing_paths(root: Path) -> list[Path]:
+    """Required paths that are absent, so --write never rewrites the index from half a tree."""
+    missing: list[Path] = []
     index_path = root / INDEX_FILE
     if not index_path.is_file():
-        print(f"error: {index_path} not found", file=sys.stderr)
+        missing.append(index_path)
+    missing.extend(root / sub for sub in SCANNED_DIRS if not (root / sub).is_dir())
+    return missing
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parsed = parse_args_or_exit(build_parser(), argv)
+    if isinstance(parsed, int):
+        return parsed
+    args = parsed
+    root: Path = args.root
+    missing = _missing_paths(root)
+    if missing:
+        for path in missing:
+            print(f"error: {path} not found", file=sys.stderr)
         return EXIT_USAGE
+    index_path = root / INDEX_FILE
     index_text = read_text(index_path)
-    table = render_index_table(merge(parse_index(index_text), scan(root)))
+    existing = parse_index(index_text)
+    scanned = scan(root)
+    table = render_index_table(merge(existing, scanned))
     if args.write:
+        dropped = dropped_rows(existing, scanned)
+        if dropped:
+            print(
+                f"removed {len(dropped)} stale row(s): {', '.join(dropped)}",
+                file=sys.stderr,
+            )
         write_text(index_path, replace_index_table(index_text, table))
         print(f"updated {index_path}")
     else:

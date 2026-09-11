@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import argparse
 import re
 import unicodedata
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from enum import Enum
+from enum import Enum, IntEnum
 from pathlib import Path
 
 INSTRUCTIONS_FILE = "00_INSTRUCTIONS.md"
@@ -18,6 +19,9 @@ ID_PLACEHOLDER = "TODO-ID"
 DEFAULT_MAX_CHARS = 50_000
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 
+SCANNED_DIRS = (CONTEXT_DIR, SOURCES_DIR)
+TEXT_SUFFIXES = frozenset({".md", ".txt"})
+
 INDEX_HEADER = "| File | Drive ID | What it contains | When to read | Owner |"
 INDEX_SEPARATOR = "| --- | --- | --- | --- | --- |"
 INDEX_COLUMNS = 5
@@ -27,6 +31,14 @@ _HEADING = re.compile(r"^#{1,6}[ \t]+(.+?)\s*$", re.MULTILINE)
 _LEADING_PREFIX = re.compile(r"^[\d_\-\s]+")
 _NON_ALNUM = re.compile(r"[^a-z0-9]+")
 _PLACEHOLDER = re.compile(r"\{\{([A-Z_]+)\}\}")
+
+
+class ExitCode(IntEnum):
+    """Exit codes shared by the three command line scripts."""
+
+    OK = 0
+    FINDINGS = 1
+    USAGE = 2
 
 
 class Mode(Enum):
@@ -96,12 +108,9 @@ def _row_cells(line: str) -> list[str] | None:
     return [_unescape_cell(c) for c in _CELL_SPLIT.split(stripped)[1:-1]]
 
 
-def _index_table_span(lines: Sequence[str]) -> tuple[int, int] | None:
-    """Return the [start, end) range of the first table block that holds index rows.
-
-    A table block is a contiguous run of lines starting with `|`; it is the index
-    when at least one of its rows has exactly `INDEX_COLUMNS` cells.
-    """
+def _table_blocks(lines: Sequence[str]) -> list[tuple[int, int]]:
+    """Return the [start, end) range of every contiguous run of lines starting with `|`."""
+    blocks: list[tuple[int, int]] = []
     position = 0
     while position < len(lines):
         if not _is_table_line(lines[position]):
@@ -110,9 +119,30 @@ def _index_table_span(lines: Sequence[str]) -> tuple[int, int] | None:
         start = position
         while position < len(lines) and _is_table_line(lines[position]):
             position += 1
-        parsed = (_row_cells(line) for line in lines[start:position])
-        if any(cells is not None and len(cells) == INDEX_COLUMNS for cells in parsed):
-            return start, position
+        blocks.append((start, position))
+    return blocks
+
+
+def _has_index_rows(lines: Sequence[str]) -> bool:
+    parsed = (_row_cells(line) for line in lines)
+    return any(cells is not None and len(cells) == INDEX_COLUMNS for cells in parsed)
+
+
+def _index_table_span(lines: Sequence[str]) -> tuple[int, int] | None:
+    """Return the [start, end) range of the table block that holds the index rows.
+
+    The block whose first line is exactly `INDEX_HEADER` wins, wherever it sits, so
+    an unrelated five-column table above the index is never mistaken for it. Only
+    when no block carries that header does the first block with `INDEX_COLUMNS`
+    cells per row take over, which keeps hand-written indexes working.
+    """
+    blocks = _table_blocks(lines)
+    for start, end in blocks:
+        if lines[start].strip() == INDEX_HEADER:
+            return start, end
+    for start, end in blocks:
+        if _has_index_rows(lines[start:end]):
+            return start, end
     return None
 
 
@@ -188,6 +218,36 @@ def fill_template(text: str, values: Mapping[str, str]) -> str:
 def relative_posix(root: Path, path: Path) -> str:
     """Path of `path` relative to `root` with forward slashes."""
     return path.relative_to(root).as_posix()
+
+
+def scan_files(root: Path) -> list[str]:
+    """Relative POSIX paths of every non-dot file under 10_context and 20_sources, sorted.
+
+    Missing directories are skipped; the caller decides whether that is an error.
+    """
+    found: list[str] = []
+    for sub in SCANNED_DIRS:
+        base = root / sub
+        if not base.is_dir():
+            continue
+        for path in base.rglob("*"):
+            if path.is_file() and not path.name.startswith("."):
+                found.append(relative_posix(root, path))
+    return sorted(found)
+
+
+def parse_args_or_exit(
+    parser: argparse.ArgumentParser, argv: Sequence[str] | None
+) -> argparse.Namespace | int:
+    """Parse `argv`, or return the exit code argparse would have exited with.
+
+    Returns `ExitCode.USAGE` for a bad command line and `ExitCode.OK` for `--help`,
+    so a `main` can hand the value straight back instead of letting SystemExit escape.
+    """
+    try:
+        return parser.parse_args(argv)
+    except SystemExit as exc:
+        return ExitCode.USAGE if exc.code else ExitCode.OK
 
 
 def read_text(path: Path) -> str:

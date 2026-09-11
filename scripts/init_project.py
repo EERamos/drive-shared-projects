@@ -3,7 +3,9 @@
 Usage:
     python scripts/init_project.py --name "My Project" --mode duo --format docs --out ./my-project
 
-Exit codes: 0 created, 1 refused (target not empty), 2 usage error.
+Nothing is written unless the target is missing or an empty directory, so an existing
+project is never overwritten.
+Exit codes: 0 created, 1 refused (target is not empty, or is not a directory), 2 usage error.
 """
 
 from __future__ import annotations
@@ -21,16 +23,18 @@ from common import (
     LOG_FILE,
     SOURCES_DIR,
     TEMPLATES_DIR,
+    ExitCode,
     Format,
     Mode,
     fill_template,
+    parse_args_or_exit,
     read_text,
     write_text,
 )
 
-EXIT_OK = 0
-EXIT_REFUSED = 1
-EXIT_USAGE = 2
+EXIT_OK = ExitCode.OK
+EXIT_REFUSED = ExitCode.FINDINGS
+EXIT_USAGE = ExitCode.USAGE
 
 _TOP_LEVEL_FILES = (INSTRUCTIONS_FILE, INDEX_FILE, LOG_FILE)
 _SUBDIRS = (CONTEXT_DIR, SOURCES_DIR)
@@ -55,8 +59,14 @@ def create_project(
     today: dt.date,
     templates: Path = TEMPLATES_DIR,
 ) -> None:
-    """Write the folder tree into `out`. Raise FileExistsError if `out` is not empty."""
-    if out.exists() and any(out.iterdir()):
+    """Write the folder tree into `out`.
+
+    Raise FileExistsError when `out` already holds something, so an existing project
+    or an unrelated file is never overwritten.
+    """
+    if out.exists() and not out.is_dir():
+        raise FileExistsError(f"{out} exists and is not a directory")
+    if out.is_dir() and any(out.iterdir()):
         raise FileExistsError(f"{out} exists and is not empty")
     base_values = {
         "NAME": name,
@@ -77,11 +87,10 @@ def create_project(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = build_parser()
-    try:
-        args = parser.parse_args(argv)
-    except SystemExit as exc:
-        return EXIT_USAGE if exc.code else EXIT_OK
+    parsed = parse_args_or_exit(build_parser(), argv)
+    if isinstance(parsed, int):
+        return parsed
+    args = parsed
     try:
         create_project(
             out=args.out,

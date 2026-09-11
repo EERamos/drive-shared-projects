@@ -77,3 +77,32 @@ def test_main_bad_mode_is_usage_error(tmp_path: Path) -> None:
         ["--name", "Demo", "--mode", "trio", "--format", "md", "--out", str(tmp_path / "p")]
     )
     assert code == EXIT_USAGE
+
+
+def test_exit_constants_are_the_literal_codes() -> None:
+    assert (EXIT_OK, EXIT_REFUSED, EXIT_USAGE) == (0, 1, 2)
+
+
+def test_create_project_refuses_a_path_that_is_a_file(tmp_path: Path) -> None:
+    out = tmp_path / "proj"
+    out.write_text("not a folder", encoding="utf-8")
+    with pytest.raises(FileExistsError, match="not a directory"):
+        create_project(out, "Demo", Mode.SOLO, Format.MD, "me", TODAY)
+
+
+def test_main_refuses_a_path_that_is_a_file(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    out = tmp_path / "proj"
+    out.write_text("not a folder", encoding="utf-8")
+    code = main(["--name", "Demo", "--mode", "solo", "--format", "md", "--out", str(out)])
+    assert code == 1
+    assert "refused:" in capsys.readouterr().err
+    assert out.read_text(encoding="utf-8") == "not a folder"
+
+
+def test_main_returns_the_literal_codes(tmp_path: Path) -> None:
+    ok = main(["--name", "Demo", "--mode", "solo", "--format", "md", "--out", str(tmp_path / "a")])
+    assert ok == 0
+    bad = main(["--name", "Demo", "--mode", "trio", "--format", "md", "--out", str(tmp_path / "b")])
+    assert bad == 2

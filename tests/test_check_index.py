@@ -74,13 +74,109 @@ def test_duplicate_topic_when_extract_lacks_source_line(clean_tree: Path) -> Non
 
 
 def test_main_exit_codes(
-    clean_tree: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    clean_tree: Path,
+    tmp_path_factory: pytest.TempPathFactory,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     assert main(["--root", str(clean_tree)]) == EXIT_OK
     assert "OK" in capsys.readouterr().out
     (clean_tree / CONTEXT_DIR / "extra.md").write_text("# Extra\n", encoding="utf-8")
     assert main(["--root", str(clean_tree)]) == EXIT_FINDINGS
     assert "MISSING_ROW 10_context/extra.md" in capsys.readouterr().out
-    empty = tmp_path / "empty"
-    empty.mkdir()
+    empty = tmp_path_factory.mktemp("empty")
     assert main(["--root", str(empty)]) == EXIT_USAGE
+
+
+def test_main_exit_codes_are_the_literal_codes(
+    clean_tree: Path, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    assert (EXIT_OK, EXIT_FINDINGS, EXIT_USAGE) == (0, 1, 2)
+    assert main(["--root", str(clean_tree)]) == 0
+    (clean_tree / CONTEXT_DIR / "extra.md").write_text("# Extra\n", encoding="utf-8")
+    assert main(["--root", str(clean_tree)]) == 1
+    assert main(["--root", str(tmp_path_factory.mktemp("nothing"))]) == 2
+
+
+def test_unreadable_latin_1_file_is_reported(clean_tree: Path) -> None:
+    (clean_tree / CONTEXT_DIR / "notes.txt").write_bytes("cafe\xe9 con leche\n".encode("latin-1"))
+    _write_index(
+        clean_tree,
+        [
+            IndexRow("10_context/notes.txt", "id2", "Notes", "always", "me"),
+            IndexRow("10_context/pricing.md", "id1", "Pricing extract", "always", "me"),
+            IndexRow("20_sources/pricing.pdf", "abc", "Pricing original", "detail", "me"),
+        ],
+    )
+    findings = check(clean_tree)
+    assert [f.kind for f in findings] == [FindingKind.UNREADABLE]
+    assert findings[0].path == "10_context/notes.txt"
+    assert findings[0].detail.startswith("UnicodeDecodeError: ")
+
+
+def test_unreadable_binary_markdown_is_reported_not_raised(clean_tree: Path) -> None:
+    (clean_tree / CONTEXT_DIR / "binary.md").write_bytes(b"\xff\xfe\x00\x01broken")
+    _write_index(
+        clean_tree,
+        [
+            IndexRow("10_context/binary.md", "id2", "Binary", "never", "me"),
+            IndexRow("10_context/pricing.md", "id1", "Pricing extract", "always", "me"),
+            IndexRow("20_sources/pricing.pdf", "abc", "Pricing original", "detail", "me"),
+        ],
+    )
+    findings = check(clean_tree)
+    assert [f.kind for f in findings] == [FindingKind.UNREADABLE]
+    assert "UnicodeDecodeError" in findings[0].detail
+
+
+def test_size_cap_applies_to_every_context_file(clean_tree: Path) -> None:
+    (clean_tree / CONTEXT_DIR / "table.csv").write_text("a,b\n" * 40, encoding="utf-8")
+    _write_index(
+        clean_tree,
+        [
+            IndexRow("10_context/pricing.md", "id1", "Pricing extract", "always", "me"),
+            IndexRow("10_context/table.csv", "id2", "A table", "detail", "me"),
+            IndexRow("20_sources/pricing.pdf", "abc", "Pricing original", "detail", "me"),
+        ],
+    )
+    findings = check(clean_tree, max_chars=100)
+    assert [f.kind for f in findings] == [FindingKind.TOO_LARGE]
+    assert findings[0].path == "10_context/table.csv"
+
+
+def test_duplicate_row(clean_tree: Path) -> None:
+    _write_index(
+        clean_tree,
+        [
+            IndexRow("10_context/pricing.md", "id1", "Pricing extract", "always", "me"),
+            IndexRow("10_context/pricing.md", "id1", "Pricing extract again", "always", "you"),
+            IndexRow("20_sources/pricing.pdf", "abc", "Pricing original", "detail", "me"),
+        ],
+    )
+    findings = check(clean_tree)
+    assert findings == [
+        Finding(FindingKind.DUPLICATE_ROW, "10_context/pricing.md", "listed 2 times")
+    ]
+
+
+def test_duplicate_row_of_a_missing_file_is_reported_once_as_stale(clean_tree: Path) -> None:
+    _write_index(
+        clean_tree,
+        [
+            IndexRow("10_context/gone.md", "id9", "Gone", "never", "me"),
+            IndexRow("10_context/gone.md", "id9", "Gone twice", "never", "me"),
+            IndexRow("10_context/pricing.md", "id1", "Pricing extract", "always", "me"),
+            IndexRow("20_sources/pricing.pdf", "abc", "Pricing original", "detail", "me"),
+        ],
+    )
+    kinds = [f.kind for f in check(clean_tree)]
+    assert kinds.count(FindingKind.STALE_ROW) == 1
+    assert kinds.count(FindingKind.DUPLICATE_ROW) == 1
+
+
+def test_max_chars_flag_is_honoured(clean_tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["--root", str(clean_tree), "--max-chars", "10000"]) == EXIT_OK
+    capsys.readouterr()
+    assert main(["--root", str(clean_tree), "--max-chars", "5"]) == EXIT_FINDINGS
+    out = capsys.readouterr().out
+    assert "TOO_LARGE 10_context/pricing.md" in out
+    assert "limit 5" in out

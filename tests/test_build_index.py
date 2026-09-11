@@ -6,8 +6,17 @@ from pathlib import Path
 
 import pytest
 
-from build_index import EXIT_OK, EXIT_USAGE, main, merge, scan, scan_files
-from common import CONTEXT_DIR, ID_PLACEHOLDER, INDEX_FILE, SOURCES_DIR, IndexRow, parse_index
+from build_index import EXIT_OK, EXIT_USAGE, main, merge, scan
+from common import (
+    CONTEXT_DIR,
+    ID_PLACEHOLDER,
+    INDEX_FILE,
+    SOURCES_DIR,
+    IndexRow,
+    parse_index,
+    render_index_table,
+    scan_files,
+)
 
 
 @pytest.fixture()
@@ -77,3 +86,77 @@ def test_main_write_updates_index_in_place(tree: Path) -> None:
 
 def test_main_missing_index_is_usage_error(tmp_path: Path) -> None:
     assert main(["--root", str(tmp_path)]) == EXIT_USAGE
+
+
+def test_exit_constants_are_the_literal_codes() -> None:
+    assert (EXIT_OK, EXIT_USAGE) == (0, 2)
+
+
+def test_main_missing_context_dir_is_usage_error(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tree / CONTEXT_DIR / ".gitkeep").unlink()
+    (tree / CONTEXT_DIR / "pricing.md").unlink()
+    (tree / CONTEXT_DIR).rmdir()
+    assert main(["--root", str(tree)]) == 2
+    err = capsys.readouterr().err
+    assert CONTEXT_DIR in err
+    assert "not found" in err
+
+
+def test_main_write_missing_sources_dir_is_usage_error(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tree / SOURCES_DIR / "contract.pdf").unlink()
+    (tree / SOURCES_DIR).rmdir()
+    assert main(["--root", str(tree), "--write"]) == 2
+    assert SOURCES_DIR in capsys.readouterr().err
+    assert parse_index((tree / INDEX_FILE).read_text(encoding="utf-8")) == []
+
+
+def test_main_write_reports_removed_stale_rows(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tree / INDEX_FILE).write_text(
+        "# Index\n\n## Files\n\n"
+        + render_index_table(
+            [
+                IndexRow("10_context/pricing.md", "id1", "Kept", "always", "me"),
+                IndexRow("10_context/gone.md", "id2", "Vanished", "never", "me"),
+                IndexRow("20_sources/also-gone.pdf", "id3", "Vanished too", "never", "me"),
+            ]
+        ),
+        encoding="utf-8",
+    )
+    assert main(["--root", str(tree), "--write"]) == 0
+    err = capsys.readouterr().err
+    assert "removed 2 stale row(s)" in err
+    assert "10_context/gone.md" in err
+    assert "20_sources/also-gone.pdf" in err
+    assert [row.file for row in parse_index((tree / INDEX_FILE).read_text(encoding="utf-8"))] == [
+        "10_context/pricing.md",
+        "20_sources/contract.pdf",
+    ]
+
+
+def test_main_write_stays_quiet_when_nothing_is_dropped(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["--root", str(tree), "--write"]) == 0
+    assert "stale" not in capsys.readouterr().err
+
+
+def test_main_write_appends_a_table_when_the_index_has_none(tree: Path) -> None:
+    (tree / INDEX_FILE).write_text("# Index\n\nNo table yet.\n", encoding="utf-8")
+    assert main(["--root", str(tree), "--write"]) == 0
+    text = (tree / INDEX_FILE).read_text(encoding="utf-8")
+    assert text.startswith("# Index\n\nNo table yet.\n")
+    assert parse_index(text) == scan(tree)
+
+
+def test_scan_gives_an_empty_summary_for_an_undecodable_file(tree: Path) -> None:
+    (tree / CONTEXT_DIR / "binary.md").write_bytes(b"\xff\xfe\x00broken")
+    (tree / CONTEXT_DIR / "latin.txt").write_bytes("cafe\xe9\n".encode("latin-1"))
+    rows = {row.file: row.summary for row in scan(tree)}
+    assert rows["10_context/binary.md"] == ""
+    assert rows["10_context/latin.txt"] == ""
