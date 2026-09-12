@@ -90,14 +90,12 @@ def test_too_large_only_applies_to_context(clean_tree: Path) -> None:
     assert findings[0].path == "10_context/pricing.md"
 
 
-def test_duplicate_topic_when_extract_lacks_source_line(clean_tree: Path) -> None:
+def test_an_extract_without_a_source_line_is_not_a_finding(clean_tree: Path) -> None:
     (clean_tree / CONTEXT_DIR / "pricing.md").write_text(
         "# Pricing\n\nno source line\n", encoding="utf-8"
     )
-    findings = check(clean_tree)
-    assert [f.kind for f in findings] == [FindingKind.DUPLICATE_TOPIC]
-    assert findings[0].path == "10_context/pricing.md"
-    assert "20_sources/pricing.pdf" in findings[0].detail
+    assert check(clean_tree) == []
+    assert not hasattr(FindingKind, "DUPLICATE_TOPIC")
 
 
 def test_main_exit_codes(

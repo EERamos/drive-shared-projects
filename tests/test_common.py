@@ -26,7 +26,6 @@ from common import (
     fill_template,
     first_heading,
     missing_project_paths,
-    normalize_stem,
     parse_args_or_exit,
     parse_index,
     read_index_or_error,
@@ -155,21 +154,6 @@ def test_first_heading() -> None:
 
 def test_first_heading_ignores_a_bare_hash_line() -> None:
     assert first_heading("#\n# real") == "real"
-
-
-def test_normalize_stem_strips_prefix_and_extension() -> None:
-    assert normalize_stem("10_context/03_Market Data.md") == "market-data"
-    assert normalize_stem("20_sources/market_data.pdf") == "market-data"
-
-
-def test_normalize_stem_folds_accents() -> None:
-    assert normalize_stem("20_sources/Análisis.pdf") == "analisis"
-    assert normalize_stem("10_context/Año Fiscal.md") == "ano-fiscal"
-
-
-def test_normalize_stem_keeps_all_digit_stems_distinct() -> None:
-    assert normalize_stem("20_sources/2024.pdf") == "2024"
-    assert normalize_stem("20_sources/2025.pdf") == "2025"
 
 
 def test_fill_template_replaces_all_known_placeholders() -> None:

@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import re
 import sys
-import unicodedata
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum, IntEnum
@@ -32,8 +31,6 @@ INDEX_COLUMNS = 5
 
 _CELL_SPLIT = re.compile(r"(?<!\\)\|")
 _HEADING = re.compile(r"^#{1,6}[ \t]+(.+?)\s*$", re.MULTILINE)
-_LEADING_PREFIX = re.compile(r"^[\d_\-\s]+")
-_NON_ALNUM = re.compile(r"[^a-z0-9]+")
 _PLACEHOLDER = re.compile(r"\{\{([A-Z_]+)\}\}")
 _LAST_UPDATED = re.compile(r"(Last updated:\s*)\d{4}-\d{2}-\d{2}")
 _SOURCE_LINE = re.compile(r"^Source:\s+(.+?)(?:\s+\(Drive ID:\s*([^\)]+)\))?\s*$", re.MULTILINE)
@@ -189,16 +186,6 @@ def first_heading(text: str) -> str | None:
     """Return the text of the first Markdown heading, or None."""
     match = _HEADING.search(text)
     return match.group(1) if match else None
-
-
-def normalize_stem(path: str) -> str:
-    """Lower-case file stem without numeric prefix, punctuation collapsed to '-'."""
-    decomposed = unicodedata.normalize("NFKD", Path(path).stem)
-    stem = "".join(c for c in decomposed if not unicodedata.combining(c)).lower()
-    without_prefix = _LEADING_PREFIX.sub("", stem)
-    if without_prefix != "":
-        stem = without_prefix
-    return _NON_ALNUM.sub("-", stem).strip("-")
 
 
 def fill_template(text: str, values: Mapping[str, str]) -> str:

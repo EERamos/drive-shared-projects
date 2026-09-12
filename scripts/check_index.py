@@ -10,7 +10,6 @@ Findings:
     DUPLICATE_PROJECT_ID     a canonical project ID collides with another one or a row
     UNREADABLE              context file or 00_INSTRUCTIONS is not readable UTF-8 text
     TOO_LARGE               context file exceeds the configured character cap
-    DUPLICATE_TOPIC         likely extract/source pair has no Source: relationship
     INVALID_SOURCE_REFERENCE Source: path or Drive ID does not match the project
     MISSING_FRONTMATTER     vault context file lacks required metadata
     BROKEN_LINK             vault wikilink target does not exist
@@ -44,7 +43,6 @@ from common import (
     is_real_drive_id,
     is_vault_project,
     missing_project_paths,
-    normalize_stem,
     parse_args_or_exit,
     parse_frontmatter,
     parse_index,
@@ -70,7 +68,6 @@ class FindingKind(Enum):
     DUPLICATE_PROJECT_ID = auto()
     UNREADABLE = auto()
     TOO_LARGE = auto()
-    DUPLICATE_TOPIC = auto()
     INVALID_SOURCE_REFERENCE = auto()
     MISSING_FRONTMATTER = auto()
     BROKEN_LINK = auto()
@@ -88,10 +85,6 @@ class Finding:
 
 def _context_files(files: Sequence[str]) -> list[str]:
     return [f for f in files if f.startswith(CONTEXT_DIR + "/")]
-
-
-def _source_files(files: Sequence[str]) -> list[str]:
-    return [f for f in files if f.startswith(SOURCES_DIR + "/")]
 
 
 def _is_canonical_location(location: str) -> bool:
@@ -128,18 +121,9 @@ def _source_reference_findings(
     text: str,
     on_disk: set[str],
     rows_by_file: dict[str, IndexRow],
-    source_twins: Sequence[str],
 ) -> list[Finding]:
     reference = source_reference(text)
     if reference is None:
-        if source_twins:
-            return [
-                Finding(
-                    FindingKind.DUPLICATE_TOPIC,
-                    rel,
-                    "same topic as " + ", ".join(source_twins) + " but no 'Source:' line",
-                )
-            ]
         return []
 
     source_path, declared_id = reference
@@ -274,10 +258,6 @@ def check(root: Path, max_chars: int = DEFAULT_MAX_CHARS) -> list[Finding]:
                         )
                     )
 
-    sources_by_topic: dict[str, list[str]] = {}
-    for rel in _source_files(files):
-        sources_by_topic.setdefault(normalize_stem(rel), []).append(rel)
-
     vault = is_vault_project(root)
     markdown_targets = _markdown_targets(root, files) if vault else set()
 
@@ -292,8 +272,7 @@ def check(root: Path, max_chars: int = DEFAULT_MAX_CHARS) -> list[Finding]:
                 Finding(FindingKind.TOO_LARGE, rel, f"{len(text)} chars, limit {max_chars}")
             )
 
-        twins = sources_by_topic.get(normalize_stem(rel), [])
-        findings.extend(_source_reference_findings(rel, text, on_disk, rows_by_file, twins))
+        findings.extend(_source_reference_findings(rel, text, on_disk, rows_by_file))
 
         if vault and Path(rel).suffix.lower() == ".md":
             metadata = parse_frontmatter(text)
