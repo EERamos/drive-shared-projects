@@ -25,6 +25,7 @@ A project is clean when:
 
 - index membership matches disk membership;
 - each row has one unique populated Drive ID;
+- canonical project IDs in 00_INSTRUCTIONS are populated and collision-free;
 - source references resolve and IDs agree;
 - context files meet size/encoding constraints;
 - vault metadata and wikilinks are valid;
