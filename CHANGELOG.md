@@ -16,11 +16,6 @@ All notable changes to this project are documented here. The format follows Keep
 - Durable architecture documentation under `docs/architecture/`.
 - Compatibility matrix separating protocol compatibility from verified connector behavior.
 - `ID_MISSING` in `check_sync`: a path present on both sides that records a Drive ID on only one of them.
-- A Drive IDs section that is missing or unreadable in `00_INSTRUCTIONS` is now a finding instead of a silently skipped check.
-
-### Removed
-
-- `DUPLICATE_TOPIC` and the filename-based topic heuristic; explicit `Source:` references are the only extract-to-source relationship.
 
 ### Changed
 
@@ -32,8 +27,13 @@ All notable changes to this project are documented here. The format follows Keep
 - `00_INSTRUCTIONS` no longer stores its own Drive ID, removing the circular setup paste step.
 - Source validation now checks the referenced path and Drive ID rather than merely testing for the presence of a `Source:` line.
 - All scripts require `00_INSTRUCTIONS.md` and `90_LOG.md`: `build_index`, `check_index` and `check_sync` exit 2 when any of the five project paths is missing.
+- A Drive IDs section that is missing or unreadable in `00_INSTRUCTIONS` is now a finding instead of a silently skipped check.
 - `DUPLICATE_PROJECT_ID` is reported only when a canonical project ID is involved; a collision between two index rows stays `DUPLICATE_DRIVE_ID`.
 - CI actions updated to `actions/checkout@v7` and `actions/setup-python@v7`.
+
+### Removed
+
+- `DUPLICATE_TOPIC` and the filename-based topic heuristic; explicit `Source:` references are the only extract-to-source relationship.
 
 ## [0.1.0] - 2026-09-11
 

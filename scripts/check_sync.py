@@ -38,7 +38,7 @@ from common import (
     parse_index,
     project_files,
     read_index_or_error,
-    read_text,
+    read_text_or_error,
 )
 
 EXIT_OK = ExitCode.OK
@@ -78,29 +78,32 @@ def read_drive_csv(path: Path) -> dict[str, str]:
         return rows
 
 
-def local_drive_ids(root: Path) -> dict[str, str]:
-    """Return known local identities for project files."""
-    ids: dict[str, str] = {}
-    index_text = read_text(root / INDEX_FILE)
-    for row in parse_index(index_text):
-        ids[row.file] = row.drive_id
-
-    instructions_path = root / INSTRUCTIONS_FILE
-    if instructions_path.is_file():
-        recorded = instruction_drive_ids(read_text(instructions_path))
-        ids[INDEX_FILE] = recorded.get("01_INDEX", "")
-        ids[LOG_FILE] = recorded.get("90_LOG", "")
-        # 00_INSTRUCTIONS intentionally has no self-ID; its path is still compared.
-        ids.setdefault(INSTRUCTIONS_FILE, "")
+def local_drive_ids(index_text: str, instructions_text: str) -> dict[str, str]:
+    """Return known local identities for project files, from texts read by the caller."""
+    ids: dict[str, str] = {row.file: row.drive_id for row in parse_index(index_text)}
+    recorded = instruction_drive_ids(instructions_text)
+    ids[INDEX_FILE] = recorded.get("01_INDEX", "")
+    ids[LOG_FILE] = recorded.get("90_LOG", "")
+    # 00_INSTRUCTIONS intentionally has no self-ID; its path is still compared.
+    ids.setdefault(INSTRUCTIONS_FILE, "")
     return ids
 
 
-def check_sync(root: Path, drive_rows: dict[str, str]) -> list[SyncFinding]:
-    """Compare local files and identities with one Drive listing."""
+def check_sync(
+    root: Path,
+    drive_rows: dict[str, str],
+    index_text: str,
+    instructions_text: str,
+) -> list[SyncFinding]:
+    """Compare local files and identities with one Drive listing.
+
+    `index_text` and `instructions_text` are read once by the caller, which is also
+    where an unreadable file is turned into a usage error.
+    """
     findings: list[SyncFinding] = []
     local = set(project_files(root))
     remote = set(drive_rows)
-    ids = local_drive_ids(root)
+    ids = local_drive_ids(index_text, instructions_text)
 
     for rel in sorted(local - remote):
         findings.append(SyncFinding(SyncFindingKind.LOCAL_ONLY, rel, "missing from Drive listing"))
@@ -166,12 +169,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     index_text = read_index_or_error(root / INDEX_FILE)
     if isinstance(index_text, int):
         return index_text
+    instructions_text = read_text_or_error(root / INSTRUCTIONS_FILE)
+    if isinstance(instructions_text, int):
+        return instructions_text
     try:
         drive_rows = read_drive_csv(args.drive_csv)
     except (OSError, UnicodeDecodeError, ValueError) as exc:
         print(f"error: cannot read Drive CSV: {exc}", file=sys.stderr)
         return EXIT_USAGE
-    findings = check_sync(root, drive_rows)
+    findings = check_sync(root, drive_rows, index_text, instructions_text)
     if not findings:
         print("OK: local project and Drive listing are synchronized")
         return EXIT_OK

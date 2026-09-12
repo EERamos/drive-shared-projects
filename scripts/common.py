@@ -308,13 +308,18 @@ def missing_project_paths(root: Path) -> list[Path]:
     return missing
 
 
-def read_index_or_error(path: Path) -> str | int:
-    """Read the index file, or report why it cannot be read and return USAGE."""
+def read_text_or_error(path: Path) -> str | int:
+    """Read `path` as UTF-8 text, or report why it cannot be read and return USAGE."""
     try:
         return read_text(path)
     except (UnicodeDecodeError, OSError) as exc:
         print(f"error: {path} is not readable as UTF-8 text: {exc}", file=sys.stderr)
         return ExitCode.USAGE
+
+
+def read_index_or_error(path: Path) -> str | int:
+    """Read the index file, or report why it cannot be read and return USAGE."""
+    return read_text_or_error(path)
 
 
 def read_text(path: Path) -> str:

@@ -95,6 +95,9 @@ def test_an_extract_without_a_source_line_is_not_a_finding(clean_tree: Path) -> 
         "# Pricing\n\nno source line\n", encoding="utf-8"
     )
     assert check(clean_tree) == []
+
+
+def test_the_duplicate_topic_finding_kind_is_retired() -> None:
     assert not hasattr(FindingKind, "DUPLICATE_TOPIC")
 
 
