@@ -220,9 +220,7 @@ def check(root: Path, max_chars: int = DEFAULT_MAX_CHARS) -> list[Finding]:
             )
 
         twins = sources_by_topic.get(normalize_stem(rel), [])
-        findings.extend(
-            _source_reference_findings(rel, text, on_disk, rows_by_file, twins)
-        )
+        findings.extend(_source_reference_findings(rel, text, on_disk, rows_by_file, twins))
 
         if vault and Path(rel).suffix.lower() == ".md":
             metadata = parse_frontmatter(text)
