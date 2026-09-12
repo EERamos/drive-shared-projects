@@ -1,7 +1,7 @@
 # Phase 2 - Obsidian vault as the home of a shared project
 
 Date: 2026-09-11
-Status: design outline, approved direction (Edgar), not yet implemented
+Status: implemented in v0.2.0; this file is the original design record
 Depends on: phase 1 (`2026-09-11-drive-shared-projects-design.md`) shipped and verified
 
 ## 1. Goal
@@ -48,7 +48,7 @@ because it needs no code and matches how a non-technical duo would work.
 C is the fallback when the owner wants git as the master and Drive as a
 published copy.
 
-## 5. What changes in the skill
+## 5. Implemented in v0.2.0
 
 - `SKILL.md`: a "vault" variant of Workflow 1 (Setup). Fifth setup question
   when format is `md`: "Does this project live in an Obsidian vault?" If yes,
@@ -82,7 +82,7 @@ layout. Only `Projects/<name>/` is synced to Drive. Domain hubs (`AI`,
 never link out to private vault pages, so nothing private leaks through the
 synced folder.
 
-## 7. Open questions for the phase 2 brainstorming
+## 7. Original open questions (resolved by the v0.2 implementation)
 
 1. Which sync option (A, B, C) is tested first, and on which machine.
 2. Whether `.obsidian/` config is excluded from the shared folder (default
@@ -91,7 +91,7 @@ synced folder.
 4. Whether members without Obsidian edit in Drive at all in phase 2, or only
    read.
 
-## 8. Order of work
+## 8. Original order of work
 
 1. Brainstorm the open questions (one session).
 2. Manual test of the chosen sync option with the phase 1 example project.
