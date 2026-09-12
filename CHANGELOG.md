@@ -11,7 +11,7 @@ All notable changes to this project are documented here. The format follows Keep
 - GitHub Actions CI across Python 3.10-3.13 with pytest, Ruff and mypy gates.
 - Obsidian/vault mode with required frontmatter, wikilink validation and `references/vault-setup.md`.
 - `check_sync.py` to compare a local project with a Drive listing CSV.
-- Index integrity findings for missing/duplicate Drive IDs and invalid source references.
+- Index integrity findings for missing/duplicate Drive IDs, missing/colliding canonical project IDs and invalid source references.
 - Stable rename recovery in `build_index.py` using unique `drive_id` frontmatter.
 - Durable architecture documentation under `docs/architecture/`.
 - Compatibility matrix separating protocol compatibility from verified connector behavior.
