@@ -22,6 +22,7 @@ TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 
 SCANNED_DIRS = (CONTEXT_DIR, SOURCES_DIR)
 TEXT_SUFFIXES = frozenset({".md", ".txt"})
+FRONTMATTER_REQUIRED = ("title", "source", "drive_id", "updated", "owner")
 
 INDEX_HEADER = "| File | Drive ID | What it contains | When to read | Owner |"
 INDEX_SEPARATOR = "| --- | --- | --- | --- | --- |"
@@ -32,14 +33,16 @@ _HEADING = re.compile(r"^#{1,6}[ \t]+(.+?)\s*$", re.MULTILINE)
 _LEADING_PREFIX = re.compile(r"^[\d_\-\s]+")
 _NON_ALNUM = re.compile(r"[^a-z0-9]+")
 _PLACEHOLDER = re.compile(r"\{\{([A-Z_]+)\}\}")
+_LAST_UPDATED = re.compile(r"(Last updated:\s*)\d{4}-\d{2}-\d{2}")
+_SOURCE_LINE = re.compile(
+    r"^Source:\s+(.+?)(?:\s+\(Drive ID:\s*([^\)]+)\))?\s*$", re.MULTILINE
+)
+_WIKILINK = re.compile(r"\[\[([^\]]+)\]\]")
+_DRIVE_ID_LINE = re.compile(r"^-\s+([^:]+):\s*(\S+)\s*$", re.MULTILINE)
 
 
 class ExitCode(IntEnum):
-    """Exit codes shared by the three command line scripts.
-
-    REFUSED is an alias of FINDINGS: both mean "the script ran and says no", which
-    init_project reports when it will not write into the target folder.
-    """
+    """Exit codes shared by the command line scripts."""
 
     OK = 0
     FINDINGS = 1
@@ -90,11 +93,7 @@ def _is_separator(cell: str) -> bool:
 
 
 def _split_lines(text: str) -> list[str]:
-    """Split `text` on newlines only, keeping the newline on every line but the last.
-
-    Unlike `str.splitlines` this ignores exotic line boundaries such as form feed,
-    so a table cell that contains one stays inside its row. `"".join` restores `text`.
-    """
+    """Split on newlines only while preserving newline characters."""
     parts = text.split("\n")
     lines = [part + "\n" for part in parts[:-1]]
     if parts[-1] != "":
@@ -115,7 +114,7 @@ def _row_cells(line: str) -> list[str] | None:
 
 
 def _table_blocks(lines: Sequence[str]) -> list[tuple[int, int]]:
-    """Return the [start, end) range of every contiguous run of lines starting with `|`."""
+    """Return the [start, end) range of every contiguous Markdown table block."""
     blocks: list[tuple[int, int]] = []
     position = 0
     while position < len(lines):
@@ -135,13 +134,7 @@ def _has_index_rows(lines: Sequence[str]) -> bool:
 
 
 def _index_table_span(lines: Sequence[str]) -> tuple[int, int] | None:
-    """Return the [start, end) range of the table block that holds the index rows.
-
-    The block whose first line is exactly `INDEX_HEADER` wins, wherever it sits, so
-    an unrelated five-column table above the index is never mistaken for it. Only
-    when no block carries that header does the first block with `INDEX_COLUMNS`
-    cells per row take over, which keeps hand-written indexes working.
-    """
+    """Return the [start, end) range of the table block that holds the index rows."""
     blocks = _table_blocks(lines)
     for start, end in blocks:
         if lines[start].strip() == INDEX_HEADER:
@@ -153,12 +146,7 @@ def _index_table_span(lines: Sequence[str]) -> tuple[int, int] | None:
 
 
 def parse_index(text: str) -> list[IndexRow]:
-    """Return the data rows of the index table in `text`.
-
-    The index table is the block that starts with `INDEX_HEADER`; when no block
-    carries that header, the first block with five-column rows is read instead.
-    The header and separator lines are skipped, and empty when there is no table.
-    """
+    """Return the data rows of the index table in `text`."""
     lines = _split_lines(text)
     span = _index_table_span(lines)
     if span is None:
@@ -182,11 +170,7 @@ def render_index_table(rows: Iterable[IndexRow]) -> str:
 
 
 def replace_index_table(text: str, new_table: str) -> str:
-    """Replace the index table block of `text` with `new_table`.
-
-    The block is the one `parse_index` reads, so other tables are left alone.
-    If `text` has no index table, append `new_table` after a blank line.
-    """
+    """Replace the index table block of `text` with `new_table`."""
     lines = _split_lines(text)
     span = _index_table_span(lines)
     if span is None:
@@ -196,6 +180,11 @@ def replace_index_table(text: str, new_table: str) -> str:
     return "".join(lines[:start]) + new_table + "".join(lines[end:])
 
 
+def refresh_last_updated(text: str, iso_date: str) -> str:
+    """Replace the first `Last updated: YYYY-MM-DD` value when present."""
+    return _LAST_UPDATED.sub(rf"\g<1>{iso_date}", text, count=1)
+
+
 def first_heading(text: str) -> str | None:
     """Return the text of the first Markdown heading, or None."""
     match = _HEADING.search(text)
@@ -203,11 +192,7 @@ def first_heading(text: str) -> str | None:
 
 
 def normalize_stem(path: str) -> str:
-    """Lower-case file stem without numeric prefix, punctuation collapsed to '-'.
-
-    Accents are folded, so "Analisis" and its accented spelling give the same stem.
-    A stem that is only a numeric prefix, such as "2024", is kept as it is.
-    """
+    """Lower-case file stem without numeric prefix, punctuation collapsed to '-'."""
     decomposed = unicodedata.normalize("NFKD", Path(path).stem)
     stem = "".join(c for c in decomposed if not unicodedata.combining(c)).lower()
     without_prefix = _LEADING_PREFIX.sub("", stem)
@@ -226,35 +211,101 @@ def fill_template(text: str, values: Mapping[str, str]) -> str:
     return _PLACEHOLDER.sub(_sub, text)
 
 
+def parse_frontmatter(text: str) -> dict[str, str]:
+    """Parse the simple scalar YAML frontmatter used by vault extracts.
+
+    This is intentionally not a general YAML parser. The project template only emits
+    one `key: value` scalar per line and quotes values that may contain punctuation.
+    """
+    if not text.startswith("---\n"):
+        return {}
+    end = text.find("\n---\n", 4)
+    if end < 0:
+        return {}
+    metadata: dict[str, str] = {}
+    for raw_line in text[4:end].split("\n"):
+        if ":" not in raw_line:
+            continue
+        key, value = raw_line.split(":", 1)
+        key = key.strip()
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+            value = value[1:-1]
+        if key:
+            metadata[key] = value
+    return metadata
+
+
+def source_reference(text: str) -> tuple[str, str | None] | None:
+    """Return `(path, drive_id)` from the first `Source:` line, if present."""
+    match = _SOURCE_LINE.search(text)
+    if match is None:
+        return None
+    path = match.group(1).strip()
+    drive_id = match.group(2).strip() if match.group(2) else None
+    return path, drive_id
+
+
+def wikilink_targets(text: str) -> list[str]:
+    """Return normalized target names from Obsidian wikilinks in `text`."""
+    targets: list[str] = []
+    for raw in _WIKILINK.findall(text):
+        target = raw.split("|", 1)[0].split("#", 1)[0].strip().replace("\\", "/")
+        if target:
+            targets.append(target)
+    return targets
+
+
+def is_real_drive_id(value: str) -> bool:
+    """Whether `value` is a populated Drive ID rather than an empty placeholder."""
+    return bool(value.strip()) and value.strip() != ID_PLACEHOLDER
+
+
+def instruction_drive_ids(text: str) -> dict[str, str]:
+    """Parse the simple `- label: ID` lines under the Drive IDs section."""
+    return {label.strip(): value.strip() for label, value in _DRIVE_ID_LINE.findall(text)}
+
+
+def is_vault_project(root: Path) -> bool:
+    """Return True when 00_INSTRUCTIONS marks the project as an Obsidian vault."""
+    path = root / INSTRUCTIONS_FILE
+    if not path.is_file():
+        return False
+    try:
+        text = read_text(path)
+    except (UnicodeDecodeError, OSError):
+        return False
+    return bool(re.search(r"\bVault:\s*yes\b", text, re.IGNORECASE))
+
+
 def relative_posix(root: Path, path: Path) -> str:
     """Path of `path` relative to `root` with forward slashes."""
     return path.relative_to(root).as_posix()
 
 
 def scan_files(root: Path) -> list[str]:
-    """Relative POSIX paths of every non-dot file under 10_context and 20_sources, sorted.
-
-    Missing directories are skipped; the caller decides whether that is an error.
-    """
+    """Relative POSIX paths of every non-dot file under context and sources, sorted."""
     found: list[str] = []
     for sub in SCANNED_DIRS:
         base = root / sub
         if not base.is_dir():
             continue
         for path in base.rglob("*"):
-            if path.is_file() and not path.name.startswith("."):
+            if path.is_file() and not any(part.startswith(".") for part in path.relative_to(base).parts):
                 found.append(relative_posix(root, path))
     return sorted(found)
+
+
+def project_files(root: Path) -> list[str]:
+    """Files that define a project and should exist in a Drive mirror."""
+    top = [name for name in (INSTRUCTIONS_FILE, INDEX_FILE, LOG_FILE) if (root / name).is_file()]
+    return sorted([*top, *scan_files(root)])
 
 
 def parse_args_or_exit(
     parser: argparse.ArgumentParser, argv: Sequence[str] | None
 ) -> argparse.Namespace | int:
-    """Parse `argv`, or return the exit code argparse would have exited with.
-
-    Returns `ExitCode.USAGE` for a bad command line and `ExitCode.OK` for `--help`,
-    so a `main` can hand the value straight back instead of letting SystemExit escape.
-    """
+    """Parse `argv`, or return the exit code argparse would have exited with."""
     try:
         return parser.parse_args(argv)
     except SystemExit as exc:
@@ -262,12 +313,7 @@ def parse_args_or_exit(
 
 
 def missing_project_paths(root: Path) -> list[Path]:
-    """Required paths of a project folder that are absent, in a fixed order.
-
-    Those are 01_INDEX.md and the two scanned folders. A script that works from
-    half a tree would report every missing file as a finding, or drop every row it
-    cannot see, so both CLIs stop instead.
-    """
+    """Required paths of a project folder that are absent, in a fixed order."""
     missing: list[Path] = []
     index_path = root / INDEX_FILE
     if not index_path.is_file():
@@ -277,10 +323,7 @@ def missing_project_paths(root: Path) -> list[Path]:
 
 
 def read_index_or_error(path: Path) -> str | int:
-    """Read the index file, or report why it cannot be read and return `ExitCode.USAGE`.
-
-    An index saved in a legacy encoding is a setup problem, not a traceback.
-    """
+    """Read the index file, or report why it cannot be read and return USAGE."""
     try:
         return read_text(path)
     except (UnicodeDecodeError, OSError) as exc:
