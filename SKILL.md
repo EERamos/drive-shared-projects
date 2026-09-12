@@ -119,7 +119,8 @@ python <skill>/scripts/check_index.py --root <project>
 The validator checks:
 
 - missing/stale/duplicate index rows;
-- missing and duplicate Drive IDs;
+- missing and duplicate Drive IDs in index rows;
+- missing/colliding canonical project IDs recorded in `00_INSTRUCTIONS`;
 - unreadable/oversized context files;
 - likely duplicate topics without an explicit `Source:` relationship;
 - invalid `Source:` path/ID references;
