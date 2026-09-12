@@ -9,6 +9,10 @@ Rows already in the index keep their human-maintained fields. Vault frontmatter 
 supply a stable Drive ID, title and owner, which also lets a renamed file inherit the
 old row by Drive ID. A write that would remove stale rows is refused unless
 `--allow-drop` is present. `Last updated` is refreshed on every successful write.
+
+Exit codes: 0 done, 1 refused, 2 usage error. Exit 2 covers a missing project path
+(00_INSTRUCTIONS.md, 01_INDEX.md, 90_LOG.md, 10_context or 20_sources) and an index
+that is not UTF-8 text.
 """
 
 from __future__ import annotations

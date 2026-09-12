@@ -10,6 +10,7 @@ from common import (
     CONTEXT_DIR,
     INDEX_FILE,
     INSTRUCTIONS_FILE,
+    LOG_FILE,
     SOURCES_DIR,
     Format,
     IndexRow,
@@ -31,6 +32,7 @@ def _base_tree(tmp_path: Path, *, vault: bool = False) -> Path:
         + ("Vault: yes.\n" if vault else "Vault: no.\n"),
         encoding="utf-8",
     )
+    (tmp_path / LOG_FILE).write_text("# Log\n", encoding="utf-8")
     return tmp_path
 
 

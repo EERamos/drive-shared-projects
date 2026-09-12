@@ -3,7 +3,9 @@
 CSV columns: `path,drive_id`. Paths are relative to the project folder and use `/`.
 The command reports files present on only one side and populated IDs that disagree.
 
-Exit codes: 0 clean, 1 findings, 2 usage error.
+Exit codes: 0 clean, 1 findings, 2 usage error. Exit 2 covers a missing project path
+(00_INSTRUCTIONS.md, 01_INDEX.md, 90_LOG.md, 10_context or 20_sources), an index that
+is not UTF-8 text and a Drive CSV that cannot be read.
 """
 
 from __future__ import annotations

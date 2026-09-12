@@ -20,6 +20,7 @@ ID_PLACEHOLDER = "TODO-ID"
 DEFAULT_MAX_CHARS = 50_000
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 
+REQUIRED_FILES = (INSTRUCTIONS_FILE, INDEX_FILE, LOG_FILE)
 SCANNED_DIRS = (CONTEXT_DIR, SOURCES_DIR)
 TEXT_SUFFIXES = frozenset({".md", ".txt"})
 FRONTMATTER_REQUIRED = ("title", "source", "drive_id", "updated", "owner")
@@ -297,7 +298,7 @@ def scan_files(root: Path) -> list[str]:
 
 def project_files(root: Path) -> list[str]:
     """Files that define a project and should exist in a Drive mirror."""
-    top = [name for name in (INSTRUCTIONS_FILE, INDEX_FILE, LOG_FILE) if (root / name).is_file()]
+    top = [name for name in REQUIRED_FILES if (root / name).is_file()]
     return sorted([*top, *scan_files(root)])
 
 
@@ -314,9 +315,7 @@ def parse_args_or_exit(
 def missing_project_paths(root: Path) -> list[Path]:
     """Required paths of a project folder that are absent, in a fixed order."""
     missing: list[Path] = []
-    index_path = root / INDEX_FILE
-    if not index_path.is_file():
-        missing.append(index_path)
+    missing.extend(root / name for name in REQUIRED_FILES if not (root / name).is_file())
     missing.extend(root / sub for sub in SCANNED_DIRS if not (root / sub).is_dir())
     return missing
 

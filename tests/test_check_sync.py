@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from check_sync import SyncFindingKind, check_sync, main, read_drive_csv
 from common import (
     CONTEXT_DIR,
@@ -59,8 +61,7 @@ def test_sync_reports_local_and_drive_only(tmp_path: Path) -> None:
     assert SyncFindingKind.DRIVE_ONLY in kinds
 
 
-def test_main(tmp_path: Path) -> None:
-    root = _project(tmp_path)
+def _drive_csv(tmp_path: Path) -> Path:
     csv_path = tmp_path / "drive.csv"
     csv_path.write_text(
         "path,drive_id\n"
@@ -70,4 +71,34 @@ def test_main(tmp_path: Path) -> None:
         "90_LOG.md,log-id\n",
         encoding="utf-8",
     )
+    return csv_path
+
+
+def test_main(tmp_path: Path) -> None:
+    root = _project(tmp_path)
+    csv_path = _drive_csv(tmp_path)
     assert main(["--root", str(root), "--drive-csv", str(csv_path)]) == 0
+
+
+def test_main_missing_instructions_is_usage_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _project(tmp_path)
+    csv_path = _drive_csv(tmp_path)
+    (root / INSTRUCTIONS_FILE).unlink()
+    assert main(["--root", str(root), "--drive-csv", str(csv_path)]) == 2
+    err = capsys.readouterr().err
+    assert INSTRUCTIONS_FILE in err
+    assert "not found" in err
+
+
+def test_main_missing_log_is_usage_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _project(tmp_path)
+    csv_path = _drive_csv(tmp_path)
+    (root / LOG_FILE).unlink()
+    assert main(["--root", str(root), "--drive-csv", str(csv_path)]) == 2
+    err = capsys.readouterr().err
+    assert LOG_FILE in err
+    assert "not found" in err

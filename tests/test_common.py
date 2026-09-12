@@ -15,6 +15,8 @@ from common import (
     INDEX_FILE,
     INDEX_HEADER,
     INDEX_SEPARATOR,
+    INSTRUCTIONS_FILE,
+    LOG_FILE,
     SOURCES_DIR,
     TEXT_SUFFIXES,
     ExitCode,
@@ -301,7 +303,9 @@ def test_read_index_or_error_reports_a_missing_file(
 
 
 def test_missing_project_paths_is_empty_for_a_complete_tree(tmp_path: Path) -> None:
+    (tmp_path / INSTRUCTIONS_FILE).write_text("# Instructions\n", encoding="utf-8")
     (tmp_path / INDEX_FILE).write_text("# Index\n", encoding="utf-8")
+    (tmp_path / LOG_FILE).write_text("# Log\n", encoding="utf-8")
     (tmp_path / CONTEXT_DIR).mkdir()
     (tmp_path / SOURCES_DIR).mkdir()
     assert missing_project_paths(tmp_path) == []
@@ -309,13 +313,16 @@ def test_missing_project_paths_is_empty_for_a_complete_tree(tmp_path: Path) -> N
 
 def test_missing_project_paths_lists_every_absent_requirement(tmp_path: Path) -> None:
     assert [p.name for p in missing_project_paths(tmp_path)] == [
+        INSTRUCTIONS_FILE,
         INDEX_FILE,
+        LOG_FILE,
         CONTEXT_DIR,
         SOURCES_DIR,
     ]
 
 
 def test_missing_project_paths_lists_only_the_absent_ones(tmp_path: Path) -> None:
+    (tmp_path / INSTRUCTIONS_FILE).write_text("# Instructions\n", encoding="utf-8")
     (tmp_path / INDEX_FILE).write_text("# Index\n", encoding="utf-8")
     (tmp_path / CONTEXT_DIR).mkdir()
-    assert [p.name for p in missing_project_paths(tmp_path)] == [SOURCES_DIR]
+    assert [p.name for p in missing_project_paths(tmp_path)] == [LOG_FILE, SOURCES_DIR]

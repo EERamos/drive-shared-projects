@@ -14,6 +14,10 @@ Findings:
     INVALID_SOURCE_REFERENCE Source: path or Drive ID does not match the project
     MISSING_FRONTMATTER     vault context file lacks required metadata
     BROKEN_LINK             vault wikilink target does not exist
+
+Exit codes: 0 clean, 1 findings, 2 usage error. Exit 2 covers a missing project path
+(00_INSTRUCTIONS.md, 01_INDEX.md, 90_LOG.md, 10_context or 20_sources) and an index
+that is not UTF-8 text.
 """
 
 from __future__ import annotations

@@ -7,9 +7,25 @@ from pathlib import Path
 import pytest
 
 from check_index import EXIT_FINDINGS, EXIT_OK, EXIT_USAGE, Finding, FindingKind, check, main
-from common import CONTEXT_DIR, INDEX_FILE, SOURCES_DIR, IndexRow, render_index_table
+from common import (
+    CONTEXT_DIR,
+    INDEX_FILE,
+    INSTRUCTIONS_FILE,
+    LOG_FILE,
+    SOURCES_DIR,
+    IndexRow,
+    render_index_table,
+)
 
 INDEX_HEAD = "# Index\n\n## Files\n\n"
+INSTRUCTIONS_TEXT = (
+    "# Project\n\n## Drive IDs\n\n"
+    "- Project folder: project-folder-id\n"
+    "- 10_context folder: context-folder-id\n"
+    "- 20_sources folder: sources-folder-id\n"
+    "- 01_INDEX: index-file-id\n"
+    "- 90_LOG: log-file-id\n"
+)
 
 
 def _write_index(root: Path, rows: list[IndexRow]) -> None:
@@ -20,6 +36,8 @@ def _write_index(root: Path, rows: list[IndexRow]) -> None:
 def clean_tree(tmp_path: Path) -> Path:
     (tmp_path / CONTEXT_DIR).mkdir()
     (tmp_path / SOURCES_DIR).mkdir()
+    (tmp_path / INSTRUCTIONS_FILE).write_text(INSTRUCTIONS_TEXT, encoding="utf-8")
+    (tmp_path / LOG_FILE).write_text("# Log\n", encoding="utf-8")
     (tmp_path / CONTEXT_DIR / "pricing.md").write_text(
         "# Pricing\n\nSource: 20_sources/pricing.pdf (Drive ID: abc)\n", encoding="utf-8"
     )
@@ -212,6 +230,26 @@ def test_main_missing_sources_dir_is_usage_error(
     (clean_tree / SOURCES_DIR).rmdir()
     assert main(["--root", str(clean_tree)]) == EXIT_USAGE
     assert SOURCES_DIR in capsys.readouterr().err
+
+
+def test_main_missing_instructions_is_usage_error(
+    clean_tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (clean_tree / INSTRUCTIONS_FILE).unlink()
+    assert main(["--root", str(clean_tree)]) == EXIT_USAGE
+    err = capsys.readouterr().err
+    assert INSTRUCTIONS_FILE in err
+    assert "not found" in err
+
+
+def test_main_missing_log_is_usage_error(
+    clean_tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (clean_tree / LOG_FILE).unlink()
+    assert main(["--root", str(clean_tree)]) == EXIT_USAGE
+    err = capsys.readouterr().err
+    assert LOG_FILE in err
+    assert "not found" in err
 
 
 def test_main_non_utf8_index_is_usage_error(
