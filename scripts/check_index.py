@@ -240,9 +240,7 @@ def check(root: Path, max_chars: int = DEFAULT_MAX_CHARS) -> list[Finding]:
             for label in required_labels:
                 value = project_ids.get(label, "")
                 if is_real_drive_id(value):
-                    identity_locations.setdefault(value, []).append(
-                        f"{INSTRUCTIONS_FILE}:{label}"
-                    )
+                    identity_locations.setdefault(value, []).append(f"{INSTRUCTIONS_FILE}:{label}")
             for drive_id, locations in sorted(identity_locations.items()):
                 unique_locations = list(dict.fromkeys(locations))
                 if len(unique_locations) > 1:
@@ -250,8 +248,7 @@ def check(root: Path, max_chars: int = DEFAULT_MAX_CHARS) -> list[Finding]:
                         Finding(
                             FindingKind.DUPLICATE_PROJECT_ID,
                             INSTRUCTIONS_FILE,
-                            f"Drive ID {drive_id} reused by "
-                            + ", ".join(unique_locations),
+                            f"Drive ID {drive_id} reused by " + ", ".join(unique_locations),
                         )
                     )
 
