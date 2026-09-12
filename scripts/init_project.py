@@ -2,7 +2,8 @@
 
 Usage:
     python scripts/init_project.py --name "My Project" --mode duo --format docs --out ./my-project
-    python scripts/init_project.py --name "My Vault Project" --mode solo --format md --vault --out ./project
+    python scripts/init_project.py --name "My Vault Project" --mode solo --format md \
+        --vault --out ./project
 
 Nothing is written unless the target is missing or an empty directory.
 Exit codes: 0 created, 1 refused, 2 usage error.
