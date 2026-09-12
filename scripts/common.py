@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import re
 import sys
-import unicodedata
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum, IntEnum
@@ -17,9 +16,11 @@ LOG_FILE = "90_LOG.md"
 CONTEXT_DIR = "10_context"
 SOURCES_DIR = "20_sources"
 ID_PLACEHOLDER = "TODO-ID"
+DRIVE_IDS_HEADING = "## Drive IDs"
 DEFAULT_MAX_CHARS = 50_000
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 
+REQUIRED_FILES = (INSTRUCTIONS_FILE, INDEX_FILE, LOG_FILE)
 SCANNED_DIRS = (CONTEXT_DIR, SOURCES_DIR)
 TEXT_SUFFIXES = frozenset({".md", ".txt"})
 FRONTMATTER_REQUIRED = ("title", "source", "drive_id", "updated", "owner")
@@ -30,8 +31,6 @@ INDEX_COLUMNS = 5
 
 _CELL_SPLIT = re.compile(r"(?<!\\)\|")
 _HEADING = re.compile(r"^#{1,6}[ \t]+(.+?)\s*$", re.MULTILINE)
-_LEADING_PREFIX = re.compile(r"^[\d_\-\s]+")
-_NON_ALNUM = re.compile(r"[^a-z0-9]+")
 _PLACEHOLDER = re.compile(r"\{\{([A-Z_]+)\}\}")
 _LAST_UPDATED = re.compile(r"(Last updated:\s*)\d{4}-\d{2}-\d{2}")
 _SOURCE_LINE = re.compile(r"^Source:\s+(.+?)(?:\s+\(Drive ID:\s*([^\)]+)\))?\s*$", re.MULTILINE)
@@ -189,16 +188,6 @@ def first_heading(text: str) -> str | None:
     return match.group(1) if match else None
 
 
-def normalize_stem(path: str) -> str:
-    """Lower-case file stem without numeric prefix, punctuation collapsed to '-'."""
-    decomposed = unicodedata.normalize("NFKD", Path(path).stem)
-    stem = "".join(c for c in decomposed if not unicodedata.combining(c)).lower()
-    without_prefix = _LEADING_PREFIX.sub("", stem)
-    if without_prefix != "":
-        stem = without_prefix
-    return _NON_ALNUM.sub("-", stem).strip("-")
-
-
 def fill_template(text: str, values: Mapping[str, str]) -> str:
     """Replace `{{KEY}}` placeholders present in `values`; leave unknown ones untouched."""
 
@@ -297,7 +286,7 @@ def scan_files(root: Path) -> list[str]:
 
 def project_files(root: Path) -> list[str]:
     """Files that define a project and should exist in a Drive mirror."""
-    top = [name for name in (INSTRUCTIONS_FILE, INDEX_FILE, LOG_FILE) if (root / name).is_file()]
+    top = [name for name in REQUIRED_FILES if (root / name).is_file()]
     return sorted([*top, *scan_files(root)])
 
 
@@ -314,20 +303,23 @@ def parse_args_or_exit(
 def missing_project_paths(root: Path) -> list[Path]:
     """Required paths of a project folder that are absent, in a fixed order."""
     missing: list[Path] = []
-    index_path = root / INDEX_FILE
-    if not index_path.is_file():
-        missing.append(index_path)
+    missing.extend(root / name for name in REQUIRED_FILES if not (root / name).is_file())
     missing.extend(root / sub for sub in SCANNED_DIRS if not (root / sub).is_dir())
     return missing
 
 
-def read_index_or_error(path: Path) -> str | int:
-    """Read the index file, or report why it cannot be read and return USAGE."""
+def read_text_or_error(path: Path) -> str | int:
+    """Read `path` as UTF-8 text, or report why it cannot be read and return USAGE."""
     try:
         return read_text(path)
     except (UnicodeDecodeError, OSError) as exc:
         print(f"error: {path} is not readable as UTF-8 text: {exc}", file=sys.stderr)
         return ExitCode.USAGE
+
+
+def read_index_or_error(path: Path) -> str | int:
+    """Read the index file, or report why it cannot be read and return USAGE."""
+    return read_text_or_error(path)
 
 
 def read_text(path: Path) -> str:

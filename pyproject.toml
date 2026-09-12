@@ -6,7 +6,7 @@ version = "0.2.0"
 description = "Portable Drive-backed shared memory and governance for AI-assisted projects"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [{ name = "Edgar Ramos" }]
+authors = [{ name = "Eduardo Ramos, CFA" }]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "hypothesis>=6", "ruff>=0.5", "mypy>=1.10"]

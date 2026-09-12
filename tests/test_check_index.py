@@ -7,9 +7,25 @@ from pathlib import Path
 import pytest
 
 from check_index import EXIT_FINDINGS, EXIT_OK, EXIT_USAGE, Finding, FindingKind, check, main
-from common import CONTEXT_DIR, INDEX_FILE, SOURCES_DIR, IndexRow, render_index_table
+from common import (
+    CONTEXT_DIR,
+    INDEX_FILE,
+    INSTRUCTIONS_FILE,
+    LOG_FILE,
+    SOURCES_DIR,
+    IndexRow,
+    render_index_table,
+)
 
 INDEX_HEAD = "# Index\n\n## Files\n\n"
+INSTRUCTIONS_TEXT = (
+    "# Project\n\n## Drive IDs\n\n"
+    "- Project folder: project-folder-id\n"
+    "- 10_context folder: context-folder-id\n"
+    "- 20_sources folder: sources-folder-id\n"
+    "- 01_INDEX: index-file-id\n"
+    "- 90_LOG: log-file-id\n"
+)
 
 
 def _write_index(root: Path, rows: list[IndexRow]) -> None:
@@ -20,6 +36,8 @@ def _write_index(root: Path, rows: list[IndexRow]) -> None:
 def clean_tree(tmp_path: Path) -> Path:
     (tmp_path / CONTEXT_DIR).mkdir()
     (tmp_path / SOURCES_DIR).mkdir()
+    (tmp_path / INSTRUCTIONS_FILE).write_text(INSTRUCTIONS_TEXT, encoding="utf-8")
+    (tmp_path / LOG_FILE).write_text("# Log\n", encoding="utf-8")
     (tmp_path / CONTEXT_DIR / "pricing.md").write_text(
         "# Pricing\n\nSource: 20_sources/pricing.pdf (Drive ID: abc)\n", encoding="utf-8"
     )
@@ -72,14 +90,15 @@ def test_too_large_only_applies_to_context(clean_tree: Path) -> None:
     assert findings[0].path == "10_context/pricing.md"
 
 
-def test_duplicate_topic_when_extract_lacks_source_line(clean_tree: Path) -> None:
+def test_an_extract_without_a_source_line_is_not_a_finding(clean_tree: Path) -> None:
     (clean_tree / CONTEXT_DIR / "pricing.md").write_text(
         "# Pricing\n\nno source line\n", encoding="utf-8"
     )
-    findings = check(clean_tree)
-    assert [f.kind for f in findings] == [FindingKind.DUPLICATE_TOPIC]
-    assert findings[0].path == "10_context/pricing.md"
-    assert "20_sources/pricing.pdf" in findings[0].detail
+    assert check(clean_tree) == []
+
+
+def test_the_duplicate_topic_finding_kind_is_retired() -> None:
+    assert not hasattr(FindingKind, "DUPLICATE_TOPIC")
 
 
 def test_main_exit_codes(
@@ -212,6 +231,79 @@ def test_main_missing_sources_dir_is_usage_error(
     (clean_tree / SOURCES_DIR).rmdir()
     assert main(["--root", str(clean_tree)]) == EXIT_USAGE
     assert SOURCES_DIR in capsys.readouterr().err
+
+
+def test_two_index_rows_sharing_an_id_are_only_a_duplicate_drive_id(clean_tree: Path) -> None:
+    _write_index(
+        clean_tree,
+        [
+            IndexRow("10_context/pricing.md", "abc", "Pricing extract", "always", "me"),
+            IndexRow("20_sources/pricing.pdf", "abc", "Pricing original", "detail", "me"),
+        ],
+    )
+    findings = check(clean_tree)
+    assert findings == [
+        Finding(
+            FindingKind.DUPLICATE_DRIVE_ID,
+            "10_context/pricing.md",
+            "Drive ID abc also used by 20_sources/pricing.pdf",
+        )
+    ]
+
+
+def test_a_canonical_id_reused_by_a_row_is_only_a_duplicate_project_id(clean_tree: Path) -> None:
+    _write_index(
+        clean_tree,
+        [
+            IndexRow("10_context/pricing.md", "index-file-id", "Pricing extract", "always", "me"),
+            IndexRow("20_sources/pricing.pdf", "abc", "Pricing original", "detail", "me"),
+        ],
+    )
+    findings = check(clean_tree)
+    assert [f.kind for f in findings] == [FindingKind.DUPLICATE_PROJECT_ID]
+    assert findings[0].path == INSTRUCTIONS_FILE
+    assert "index-file-id" in findings[0].detail
+    assert "10_context/pricing.md" in findings[0].detail
+
+
+def test_unreadable_instructions_is_reported(clean_tree: Path) -> None:
+    (clean_tree / INSTRUCTIONS_FILE).write_bytes("Drive IDs caf\xe9\n".encode("latin-1"))
+    findings = check(clean_tree)
+    assert [f.kind for f in findings] == [FindingKind.UNREADABLE]
+    assert findings[0].path == INSTRUCTIONS_FILE
+    assert findings[0].detail.startswith("UnicodeDecodeError: ")
+
+
+def test_missing_drive_ids_section_is_reported(clean_tree: Path) -> None:
+    (clean_tree / INSTRUCTIONS_FILE).write_text("# Project\n\nNo identities here.\n", "utf-8")
+    findings = check(clean_tree)
+    assert findings == [
+        Finding(
+            FindingKind.MISSING_PROJECT_ID,
+            INSTRUCTIONS_FILE,
+            "Drive IDs section is missing",
+        )
+    ]
+
+
+def test_main_missing_instructions_is_usage_error(
+    clean_tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (clean_tree / INSTRUCTIONS_FILE).unlink()
+    assert main(["--root", str(clean_tree)]) == EXIT_USAGE
+    err = capsys.readouterr().err
+    assert INSTRUCTIONS_FILE in err
+    assert "not found" in err
+
+
+def test_main_missing_log_is_usage_error(
+    clean_tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (clean_tree / LOG_FILE).unlink()
+    assert main(["--root", str(clean_tree)]) == EXIT_USAGE
+    err = capsys.readouterr().err
+    assert LOG_FILE in err
+    assert "not found" in err
 
 
 def test_main_non_utf8_index_is_usage_error(

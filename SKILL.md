@@ -120,10 +120,10 @@ The validator checks:
 
 - missing/stale/duplicate index rows;
 - missing and duplicate Drive IDs in index rows;
+- a missing or unreadable Drive IDs section in `00_INSTRUCTIONS`;
 - missing/colliding canonical project IDs recorded in `00_INSTRUCTIONS`;
 - unreadable/oversized context files;
-- likely duplicate topics without an explicit `Source:` relationship;
-- invalid `Source:` path/ID references;
+- the explicit `Source:` reference of an extract: the path must resolve under `20_sources` and a declared Drive ID must match the index row. There is no filename-based topic heuristic; the `Source:` line is the only extract-to-source relationship;
 - in vault mode, required frontmatter and broken `[[wikilinks]]`.
 
 Exit `0` means clean, `1` means findings, `2` means usage/setup error.

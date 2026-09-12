@@ -72,5 +72,6 @@ Findings:
 - `LOCAL_ONLY`: local file is absent from Drive listing.
 - `DRIVE_ONLY`: Drive file is absent locally.
 - `ID_MISMATCH`: both exist but populated IDs disagree.
+- `ID_MISSING`: both exist but only one side records a Drive ID.
 
 `00_INSTRUCTIONS.md` has no self-ID by design, so sync validation compares its presence but not its identity.

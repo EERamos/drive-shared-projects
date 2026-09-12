@@ -11,6 +11,8 @@ from common import (
     CONTEXT_DIR,
     ID_PLACEHOLDER,
     INDEX_FILE,
+    INSTRUCTIONS_FILE,
+    LOG_FILE,
     SOURCES_DIR,
     IndexRow,
     parse_index,
@@ -23,6 +25,8 @@ from common import (
 def tree(tmp_path: Path) -> Path:
     (tmp_path / CONTEXT_DIR).mkdir()
     (tmp_path / SOURCES_DIR).mkdir()
+    (tmp_path / INSTRUCTIONS_FILE).write_text("# Project\n", encoding="utf-8")
+    (tmp_path / LOG_FILE).write_text("# Log\n", encoding="utf-8")
     (tmp_path / CONTEXT_DIR / ".gitkeep").write_text("", encoding="utf-8")
     (tmp_path / CONTEXT_DIR / "pricing.md").write_text("# Pricing model\n\nbody", encoding="utf-8")
     (tmp_path / SOURCES_DIR / "contract.pdf").write_bytes(b"%PDF-1.4 fake")
@@ -101,6 +105,24 @@ def test_main_missing_context_dir_is_usage_error(
     assert main(["--root", str(tree)]) == 2
     err = capsys.readouterr().err
     assert CONTEXT_DIR in err
+    assert "not found" in err
+
+
+def test_main_missing_instructions_is_usage_error(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    (tree / INSTRUCTIONS_FILE).unlink()
+    assert main(["--root", str(tree)]) == 2
+    err = capsys.readouterr().err
+    assert INSTRUCTIONS_FILE in err
+    assert "not found" in err
+
+
+def test_main_missing_log_is_usage_error(tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    (tree / LOG_FILE).unlink()
+    assert main(["--root", str(tree)]) == 2
+    err = capsys.readouterr().err
+    assert LOG_FILE in err
     assert "not found" in err
 
 

@@ -15,6 +15,8 @@ from common import (
     INDEX_FILE,
     INDEX_HEADER,
     INDEX_SEPARATOR,
+    INSTRUCTIONS_FILE,
+    LOG_FILE,
     SOURCES_DIR,
     TEXT_SUFFIXES,
     ExitCode,
@@ -24,7 +26,6 @@ from common import (
     fill_template,
     first_heading,
     missing_project_paths,
-    normalize_stem,
     parse_args_or_exit,
     parse_index,
     read_index_or_error,
@@ -153,21 +154,6 @@ def test_first_heading() -> None:
 
 def test_first_heading_ignores_a_bare_hash_line() -> None:
     assert first_heading("#\n# real") == "real"
-
-
-def test_normalize_stem_strips_prefix_and_extension() -> None:
-    assert normalize_stem("10_context/03_Market Data.md") == "market-data"
-    assert normalize_stem("20_sources/market_data.pdf") == "market-data"
-
-
-def test_normalize_stem_folds_accents() -> None:
-    assert normalize_stem("20_sources/Análisis.pdf") == "analisis"
-    assert normalize_stem("10_context/Año Fiscal.md") == "ano-fiscal"
-
-
-def test_normalize_stem_keeps_all_digit_stems_distinct() -> None:
-    assert normalize_stem("20_sources/2024.pdf") == "2024"
-    assert normalize_stem("20_sources/2025.pdf") == "2025"
 
 
 def test_fill_template_replaces_all_known_placeholders() -> None:
@@ -301,7 +287,9 @@ def test_read_index_or_error_reports_a_missing_file(
 
 
 def test_missing_project_paths_is_empty_for_a_complete_tree(tmp_path: Path) -> None:
+    (tmp_path / INSTRUCTIONS_FILE).write_text("# Instructions\n", encoding="utf-8")
     (tmp_path / INDEX_FILE).write_text("# Index\n", encoding="utf-8")
+    (tmp_path / LOG_FILE).write_text("# Log\n", encoding="utf-8")
     (tmp_path / CONTEXT_DIR).mkdir()
     (tmp_path / SOURCES_DIR).mkdir()
     assert missing_project_paths(tmp_path) == []
@@ -309,13 +297,16 @@ def test_missing_project_paths_is_empty_for_a_complete_tree(tmp_path: Path) -> N
 
 def test_missing_project_paths_lists_every_absent_requirement(tmp_path: Path) -> None:
     assert [p.name for p in missing_project_paths(tmp_path)] == [
+        INSTRUCTIONS_FILE,
         INDEX_FILE,
+        LOG_FILE,
         CONTEXT_DIR,
         SOURCES_DIR,
     ]
 
 
 def test_missing_project_paths_lists_only_the_absent_ones(tmp_path: Path) -> None:
+    (tmp_path / INSTRUCTIONS_FILE).write_text("# Instructions\n", encoding="utf-8")
     (tmp_path / INDEX_FILE).write_text("# Index\n", encoding="utf-8")
     (tmp_path / CONTEXT_DIR).mkdir()
-    assert [p.name for p in missing_project_paths(tmp_path)] == [SOURCES_DIR]
+    assert [p.name for p in missing_project_paths(tmp_path)] == [LOG_FILE, SOURCES_DIR]
