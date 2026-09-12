@@ -1,7 +1,15 @@
 """Compare a local project tree with an exported Google Drive listing CSV.
 
 CSV columns: `path,drive_id`. Paths are relative to the project folder and use `/`.
-The command reports files present on only one side and populated IDs that disagree.
+The command reports files present on only one side, populated IDs that disagree and
+IDs recorded on only one side. 00_INSTRUCTIONS.md has no local self-ID by design, so
+an empty local ID is not a finding for that path.
+
+Findings:
+    LOCAL_ONLY   local file is absent from the Drive listing
+    DRIVE_ONLY   Drive file is absent from the local project
+    ID_MISMATCH  both sides have a populated ID and they disagree
+    ID_MISSING   the path exists on both sides but only one side records an ID
 
 Exit codes: 0 clean, 1 findings, 2 usage error. Exit 2 covers a missing project path
 (00_INSTRUCTIONS.md, 01_INDEX.md, 90_LOG.md, 10_context or 20_sources), an index that
@@ -42,6 +50,7 @@ class SyncFindingKind(Enum):
     LOCAL_ONLY = auto()
     DRIVE_ONLY = auto()
     ID_MISMATCH = auto()
+    ID_MISSING = auto()
 
 
 @dataclass(frozen=True)
@@ -100,12 +109,32 @@ def check_sync(root: Path, drive_rows: dict[str, str]) -> list[SyncFinding]:
     for rel in sorted(local & remote):
         local_id = ids.get(rel, "")
         remote_id = drive_rows.get(rel, "")
-        if is_real_drive_id(local_id) and is_real_drive_id(remote_id) and local_id != remote_id:
+        has_local = is_real_drive_id(local_id)
+        has_remote = is_real_drive_id(remote_id)
+        if has_local and has_remote:
+            if local_id != remote_id:
+                findings.append(
+                    SyncFinding(
+                        SyncFindingKind.ID_MISMATCH,
+                        rel,
+                        f"local ID {local_id} != Drive ID {remote_id}",
+                    )
+                )
+        elif has_remote and rel != INSTRUCTIONS_FILE:
+            # 00_INSTRUCTIONS has no local self-ID by design; every other path needs one.
             findings.append(
                 SyncFinding(
-                    SyncFindingKind.ID_MISMATCH,
+                    SyncFindingKind.ID_MISSING,
                     rel,
-                    f"local ID {local_id} != Drive ID {remote_id}",
+                    f"local ID missing (Drive has {remote_id})",
+                )
+            )
+        elif has_local:
+            findings.append(
+                SyncFinding(
+                    SyncFindingKind.ID_MISSING,
+                    rel,
+                    f"Drive ID missing (local has {local_id})",
                 )
             )
     return findings

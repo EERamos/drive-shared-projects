@@ -260,7 +260,7 @@ python ~/.claude/skills/drive-shared-projects/scripts/check_sync.py \
   --drive-csv ./drive-listing.csv
 ```
 
-It reports `LOCAL_ONLY`, `DRIVE_ONLY` and `ID_MISMATCH` findings.
+It reports `LOCAL_ONLY`, `DRIVE_ONLY`, `ID_MISMATCH` and `ID_MISSING` findings. `00_INSTRUCTIONS` has no local self-ID by design, so an empty local ID is not a finding for that path.
 
 ## Development
 

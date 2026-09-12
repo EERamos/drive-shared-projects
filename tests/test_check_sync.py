@@ -53,6 +53,50 @@ def test_sync_clean_and_mismatch(tmp_path: Path) -> None:
     assert [f.kind for f in findings] == [SyncFindingKind.ID_MISMATCH]
 
 
+def test_sync_reports_a_drive_id_missing_on_the_drive_side(tmp_path: Path) -> None:
+    root = _project(tmp_path)
+    remote = {
+        "00_INSTRUCTIONS.md": "instructions-id",
+        "01_INDEX.md": "index-id",
+        "10_context/a.md": "",
+        "90_LOG.md": "log-id",
+    }
+    findings = check_sync(root, remote)
+    assert [f.kind for f in findings] == [SyncFindingKind.ID_MISSING]
+    assert findings[0].path == "10_context/a.md"
+    assert findings[0].detail == "Drive ID missing (local has a-id)"
+
+
+def test_sync_reports_a_drive_id_missing_on_the_local_side(tmp_path: Path) -> None:
+    root = _project(tmp_path)
+    (root / INDEX_FILE).write_text(
+        "# Index\n\n"
+        + render_index_table([IndexRow("10_context/a.md", "TODO-ID", "A", "always", "Ana")]),
+        encoding="utf-8",
+    )
+    remote = {
+        "00_INSTRUCTIONS.md": "instructions-id",
+        "01_INDEX.md": "index-id",
+        "10_context/a.md": "a-id",
+        "90_LOG.md": "log-id",
+    }
+    findings = check_sync(root, remote)
+    assert [f.kind for f in findings] == [SyncFindingKind.ID_MISSING]
+    assert findings[0].path == "10_context/a.md"
+    assert findings[0].detail == "local ID missing (Drive has a-id)"
+
+
+def test_sync_accepts_the_missing_self_id_of_the_instructions_file(tmp_path: Path) -> None:
+    root = _project(tmp_path)
+    remote = {
+        "00_INSTRUCTIONS.md": "instructions-id",
+        "01_INDEX.md": "index-id",
+        "10_context/a.md": "a-id",
+        "90_LOG.md": "log-id",
+    }
+    assert check_sync(root, remote) == []
+
+
 def test_sync_reports_local_and_drive_only(tmp_path: Path) -> None:
     root = _project(tmp_path)
     findings = check_sync(root, {"remote-only.md": "x"})
