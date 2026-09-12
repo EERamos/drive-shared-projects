@@ -6,6 +6,8 @@ Findings:
     DUPLICATE_ROW           same file appears more than once in the index
     MISSING_DRIVE_ID        index row still has TODO-ID or an empty ID
     DUPLICATE_DRIVE_ID      one populated Drive ID is assigned to multiple rows
+    MISSING_PROJECT_ID       required canonical project ID is absent/TODO-ID
+    DUPLICATE_PROJECT_ID     canonical project IDs collide with each other or index rows
     UNREADABLE              context file is not readable UTF-8 text
     TOO_LARGE               context file exceeds the configured character cap
     DUPLICATE_TOPIC         likely extract/source pair has no Source: relationship
@@ -29,9 +31,11 @@ from common import (
     DEFAULT_MAX_CHARS,
     FRONTMATTER_REQUIRED,
     INDEX_FILE,
+    INSTRUCTIONS_FILE,
     SOURCES_DIR,
     ExitCode,
     IndexRow,
+    instruction_drive_ids,
     is_real_drive_id,
     is_vault_project,
     missing_project_paths,
@@ -57,6 +61,8 @@ class FindingKind(Enum):
     DUPLICATE_ROW = auto()
     MISSING_DRIVE_ID = auto()
     DUPLICATE_DRIVE_ID = auto()
+    MISSING_PROJECT_ID = auto()
+    DUPLICATE_PROJECT_ID = auto()
     UNREADABLE = auto()
     TOO_LARGE = auto()
     DUPLICATE_TOPIC = auto()
@@ -200,6 +206,54 @@ def check(root: Path, max_chars: int = DEFAULT_MAX_CHARS) -> list[Finding]:
                     f"Drive ID {drive_id} also used by " + ", ".join(unique_paths[1:]),
                 )
             )
+
+    instructions_path = root / INSTRUCTIONS_FILE
+    if instructions_path.is_file():
+        try:
+            instructions_text = read_text(instructions_path)
+        except (UnicodeDecodeError, OSError):
+            instructions_text = ""
+        if "## Drive IDs" in instructions_text:
+            project_ids = instruction_drive_ids(instructions_text)
+            required_labels = (
+                "Project folder",
+                "10_context folder",
+                "20_sources folder",
+                "01_INDEX",
+                "90_LOG",
+            )
+            for label in required_labels:
+                value = project_ids.get(label, "")
+                if not is_real_drive_id(value):
+                    findings.append(
+                        Finding(
+                            FindingKind.MISSING_PROJECT_ID,
+                            INSTRUCTIONS_FILE,
+                            f"{label} is empty or TODO-ID",
+                        )
+                    )
+
+            identity_locations: dict[str, list[str]] = {}
+            for row in rows:
+                if is_real_drive_id(row.drive_id):
+                    identity_locations.setdefault(row.drive_id, []).append(row.file)
+            for label in required_labels:
+                value = project_ids.get(label, "")
+                if is_real_drive_id(value):
+                    identity_locations.setdefault(value, []).append(
+                        f"{INSTRUCTIONS_FILE}:{label}"
+                    )
+            for drive_id, locations in sorted(identity_locations.items()):
+                unique_locations = list(dict.fromkeys(locations))
+                if len(unique_locations) > 1:
+                    findings.append(
+                        Finding(
+                            FindingKind.DUPLICATE_PROJECT_ID,
+                            INSTRUCTIONS_FILE,
+                            f"Drive ID {drive_id} reused by "
+                            + ", ".join(unique_locations),
+                        )
+                    )
 
     sources_by_topic: dict[str, list[str]] = {}
     for rel in _source_files(files):
