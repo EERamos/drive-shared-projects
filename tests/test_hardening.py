@@ -216,3 +216,25 @@ def test_init_vault_requires_md_and_fills_role_tone(tmp_path: Path) -> None:
     assert "Tone and language: technical Spanish." in instructions
     assert "- 00_INSTRUCTIONS:" not in instructions
     assert "{{" not in instructions
+
+
+def test_check_validates_canonical_project_ids(tmp_path: Path) -> None:
+    root = _base_tree(tmp_path)
+    (root / CONTEXT_DIR / "a.md").write_text("# A\n", encoding="utf-8")
+    _write_index(root, [IndexRow("10_context/a.md", "ctx-id", "A", "always", "Ana")])
+    (root / INSTRUCTIONS_FILE).write_text(
+        "# Project\n\n## Drive IDs\n\n"
+        "- Project folder: TODO-ID\n"
+        "- 10_context folder: folder-shared\n"
+        "- 20_sources folder: folder-source\n"
+        "- 01_INDEX: ctx-id\n"
+        "- 90_LOG: log-id\n",
+        encoding="utf-8",
+    )
+
+    findings = check(root)
+    kinds = [finding.kind for finding in findings]
+    assert FindingKind.MISSING_PROJECT_ID in kinds
+    assert FindingKind.DUPLICATE_PROJECT_ID in kinds
+    assert any("Project folder" in finding.detail for finding in findings)
+    assert any("ctx-id" in finding.detail for finding in findings)
