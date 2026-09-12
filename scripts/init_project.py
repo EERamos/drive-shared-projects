@@ -2,10 +2,10 @@
 
 Usage:
     python scripts/init_project.py --name "My Project" --mode duo --format docs --out ./my-project
+    python scripts/init_project.py --name "My Vault Project" --mode solo --format md --vault --out ./project
 
-Nothing is written unless the target is missing or an empty directory, so an existing
-project is never overwritten.
-Exit codes: 0 created, 1 refused (target is not empty, or is not a directory), 2 usage error.
+Nothing is written unless the target is missing or an empty directory.
+Exit codes: 0 created, 1 refused, 2 usage error.
 """
 
 from __future__ import annotations
@@ -47,6 +47,21 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--format", required=True, choices=[f.value for f in Format])
     parser.add_argument("--out", required=True, type=Path, help="Target directory.")
     parser.add_argument("--owner", default="unassigned", help="Index owner name.")
+    parser.add_argument(
+        "--role",
+        default="AI project assistant",
+        help="Role written into 00_INSTRUCTIONS.",
+    )
+    parser.add_argument(
+        "--tone",
+        default="direct; use the user's language",
+        help="Tone/language rule written into 00_INSTRUCTIONS.",
+    )
+    parser.add_argument(
+        "--vault",
+        action="store_true",
+        help="Mark an md-format project as living inside an Obsidian vault.",
+    )
     return parser
 
 
@@ -57,13 +72,14 @@ def create_project(
     fmt: Format,
     owner: str,
     today: dt.date,
+    role: str = "AI project assistant",
+    tone: str = "direct; use the user's language",
+    vault: bool = False,
     templates: Path = TEMPLATES_DIR,
 ) -> None:
-    """Write the folder tree into `out`.
-
-    Raise FileExistsError when `out` already holds something, so an existing project
-    or an unrelated file is never overwritten.
-    """
+    """Write the folder tree into `out` without overwriting existing content."""
+    if vault and fmt is not Format.MD:
+        raise ValueError("vault mode requires --format md")
     if out.exists() and not out.is_dir():
         raise FileExistsError(f"{out} exists and is not a directory")
     if out.is_dir() and any(out.iterdir()):
@@ -74,6 +90,9 @@ def create_project(
         "FORMAT": fmt.value,
         "DATE": today.isoformat(),
         "OWNER": owner,
+        "ROLE": role,
+        "LANGUAGE_TONE": tone,
+        "VAULT": "yes" if vault else "no",
     }
     fragment = read_text(templates / "modes" / f"{mode.value}.md").rstrip("\n")
     values = {**base_values, "MODE_RULES": fill_template(fragment, base_values)}
@@ -99,7 +118,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             fmt=Format(args.format),
             owner=args.owner,
             today=dt.date.today(),
+            role=args.role,
+            tone=args.tone,
+            vault=args.vault,
         )
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return EXIT_USAGE
     except FileExistsError as exc:
         print(f"refused: {exc}", file=sys.stderr)
         return EXIT_REFUSED
