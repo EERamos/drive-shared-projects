@@ -291,7 +291,8 @@ def scan_files(root: Path) -> list[str]:
         if not base.is_dir():
             continue
         for path in base.rglob("*"):
-            if path.is_file() and not any(part.startswith(".") for part in path.relative_to(base).parts):
+            relative_parts = path.relative_to(base).parts
+            if path.is_file() and not any(part.startswith(".") for part in relative_parts):
                 found.append(relative_posix(root, path))
     return sorted(found)
 
