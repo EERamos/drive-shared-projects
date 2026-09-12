@@ -226,7 +226,9 @@ def check(root: Path, max_chars: int = DEFAULT_MAX_CHARS) -> list[Finding]:
 
         if vault and Path(rel).suffix.lower() == ".md":
             metadata = parse_frontmatter(text)
-            missing_keys = [key for key in FRONTMATTER_REQUIRED if not metadata.get(key, "").strip()]
+            missing_keys = [
+                key for key in FRONTMATTER_REQUIRED if not metadata.get(key, "").strip()
+            ]
             if missing_keys:
                 findings.append(
                     Finding(
@@ -237,9 +239,16 @@ def check(root: Path, max_chars: int = DEFAULT_MAX_CHARS) -> list[Finding]:
                 )
             for target in wikilink_targets(text):
                 normalized = target[:-3] if target.lower().endswith(".md") else target
-                if normalized not in markdown_targets and Path(normalized).name not in markdown_targets:
+                if (
+                    normalized not in markdown_targets
+                    and Path(normalized).name not in markdown_targets
+                ):
                     findings.append(
-                        Finding(FindingKind.BROKEN_LINK, rel, f"wikilink target not found: {target}")
+                        Finding(
+                            FindingKind.BROKEN_LINK,
+                            rel,
+                            f"wikilink target not found: {target}",
+                        )
                     )
     return findings
 
