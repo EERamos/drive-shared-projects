@@ -7,7 +7,7 @@ Findings:
     MISSING_DRIVE_ID        index row still has TODO-ID or an empty ID
     DUPLICATE_DRIVE_ID      one populated Drive ID is assigned to multiple rows
     MISSING_PROJECT_ID       canonical project ID absent/TODO-ID, or no Drive IDs section
-    DUPLICATE_PROJECT_ID     canonical project IDs collide with each other or index rows
+    DUPLICATE_PROJECT_ID     a canonical project ID collides with another one or a row
     UNREADABLE              context file or 00_INSTRUCTIONS is not readable UTF-8 text
     TOO_LARGE               context file exceeds the configured character cap
     DUPLICATE_TOPIC         likely extract/source pair has no Source: relationship
@@ -92,6 +92,11 @@ def _context_files(files: Sequence[str]) -> list[str]:
 
 def _source_files(files: Sequence[str]) -> list[str]:
     return [f for f in files if f.startswith(SOURCES_DIR + "/")]
+
+
+def _is_canonical_location(location: str) -> bool:
+    """Whether an identity location is a canonical label of 00_INSTRUCTIONS."""
+    return location.startswith(INSTRUCTIONS_FILE + ":")
 
 
 def _first_rows(rows: Sequence[IndexRow]) -> dict[str, IndexRow]:
@@ -259,7 +264,8 @@ def check(root: Path, max_chars: int = DEFAULT_MAX_CHARS) -> list[Finding]:
                     identity_locations.setdefault(value, []).append(f"{INSTRUCTIONS_FILE}:{label}")
             for drive_id, locations in sorted(identity_locations.items()):
                 unique_locations = list(dict.fromkeys(locations))
-                if len(unique_locations) > 1:
+                canonical = any(_is_canonical_location(loc) for loc in unique_locations)
+                if len(unique_locations) > 1 and canonical:
                     findings.append(
                         Finding(
                             FindingKind.DUPLICATE_PROJECT_ID,

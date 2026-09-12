@@ -232,6 +232,39 @@ def test_main_missing_sources_dir_is_usage_error(
     assert SOURCES_DIR in capsys.readouterr().err
 
 
+def test_two_index_rows_sharing_an_id_are_only_a_duplicate_drive_id(clean_tree: Path) -> None:
+    _write_index(
+        clean_tree,
+        [
+            IndexRow("10_context/pricing.md", "abc", "Pricing extract", "always", "me"),
+            IndexRow("20_sources/pricing.pdf", "abc", "Pricing original", "detail", "me"),
+        ],
+    )
+    findings = check(clean_tree)
+    assert findings == [
+        Finding(
+            FindingKind.DUPLICATE_DRIVE_ID,
+            "10_context/pricing.md",
+            "Drive ID abc also used by 20_sources/pricing.pdf",
+        )
+    ]
+
+
+def test_a_canonical_id_reused_by_a_row_is_only_a_duplicate_project_id(clean_tree: Path) -> None:
+    _write_index(
+        clean_tree,
+        [
+            IndexRow("10_context/pricing.md", "index-file-id", "Pricing extract", "always", "me"),
+            IndexRow("20_sources/pricing.pdf", "abc", "Pricing original", "detail", "me"),
+        ],
+    )
+    findings = check(clean_tree)
+    assert [f.kind for f in findings] == [FindingKind.DUPLICATE_PROJECT_ID]
+    assert findings[0].path == INSTRUCTIONS_FILE
+    assert "index-file-id" in findings[0].detail
+    assert "10_context/pricing.md" in findings[0].detail
+
+
 def test_unreadable_instructions_is_reported(clean_tree: Path) -> None:
     (clean_tree / INSTRUCTIONS_FILE).write_bytes("Drive IDs caf\xe9\n".encode("latin-1"))
     findings = check(clean_tree)
