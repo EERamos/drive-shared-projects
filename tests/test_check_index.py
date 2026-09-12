@@ -48,14 +48,23 @@ def test_missing_row(clean_tree: Path) -> None:
 def test_stale_row(clean_tree: Path) -> None:
     (clean_tree / SOURCES_DIR / "pricing.pdf").unlink()
     findings = check(clean_tree)
-    assert findings == [
-        Finding(FindingKind.STALE_ROW, "20_sources/pricing.pdf", "row exists but file is missing")
+    assert [f.kind for f in findings] == [
+        FindingKind.STALE_ROW,
+        FindingKind.INVALID_SOURCE_REFERENCE,
     ]
+    assert findings[0] == Finding(
+        FindingKind.STALE_ROW,
+        "20_sources/pricing.pdf",
+        "row exists but file is missing",
+    )
+    assert findings[1].path == "10_context/pricing.md"
+    assert "Source path does not exist" in findings[1].detail
 
 
 def test_too_large_only_applies_to_context(clean_tree: Path) -> None:
     (clean_tree / CONTEXT_DIR / "pricing.md").write_text(
-        "# Pricing\n\nSource: x\n" + "a" * 60, encoding="utf-8"
+        "# Pricing\n\nSource: 20_sources/pricing.pdf (Drive ID: abc)\n" + "a" * 60,
+        encoding="utf-8",
     )
     (clean_tree / SOURCES_DIR / "pricing.pdf").write_bytes(b"x" * 500)
     findings = check(clean_tree, max_chars=50)

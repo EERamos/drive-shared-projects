@@ -1,36 +1,152 @@
 # drive-shared-projects
 
-A Claude skill that turns a Google Drive folder into the equivalent of a shared Claude project: common instructions, a shared knowledge base in Markdown, and an append-only decision log. Works with Pro and Max accounts through the Google Drive connector; no Team plan needed.
+A portable shared-memory and governance layer for AI-assisted projects, backed by Google Drive.
 
-## What you get
+The reference implementation is a Claude Skill, but the project state itself is vendor-neutral: instructions, an index, working context, original sources and an append-only decision log. Any assistant that can read the same Drive files can consume the same project memory without sharing chat history.
 
-- A fixed folder layout: 00_INSTRUCTIONS, 01_INDEX, 10_context/, 20_sources/, 90_LOG.
-- Templates for every document and a ready-to-paste project instruction block.
-- Three modes (solo, duo, group) with governance rules that the skill applies at setup.
-- Optional scripts for Claude Code: create the tree, refresh the index, validate the folder with an exit code.
+> This is not an agent framework. It is the context, identity and governance layer that agents or assistants can work on top of.
 
-## Works with any assistant
+## Why it exists
 
-The folder is plain Drive content: Google Docs written in Markdown, .md files and your sources. Nothing in it is specific to Claude. Any assistant that can read your Drive can be pointed at the same folder with the same instruction block. That covers ChatGPT, Gemini, Grok, Copilot and a local model behind a Drive tool. A team can therefore mix assistants and still share one knowledge base and one decision log. Use `templates/assistant-instruction-generic.md` for assistants other than Claude. The skill itself (the setup, ingest and maintenance workflows) runs in Claude, and the other assistants consume what it maintains.
+Long-running AI work breaks when knowledge is trapped in individual chats. This project externalizes the durable parts:
+
+- what the project is and how the assistant should behave;
+- what files exist and when to read them;
+- the current working knowledge;
+- the original evidence;
+- the decisions and lessons that must survive across conversations.
+
+The result is a project that can be resumed by another chat, another person or another assistant without replaying the full conversation history.
+
+## Architecture
+
+```text
+                         ┌─────────────────────┐
+                         │   00_INSTRUCTIONS   │
+                         │ role · rules · IDs  │
+                         └──────────┬──────────┘
+                                    │
+                                    v
+                         ┌─────────────────────┐
+                         │      01_INDEX       │
+                         │ routing + identity  │
+                         └──────────┬──────────┘
+                                    │
+                  ┌─────────────────┴─────────────────┐
+                  v                                   v
+          ┌───────────────┐                   ┌───────────────┐
+          │  10_context/  │  extracts from    │  20_sources/  │
+          │ working truth │ <──────────────── │ originals     │
+          └───────┬───────┘                   └───────────────┘
+                  │
+                  v
+          ┌───────────────┐
+          │    90_LOG     │
+          │ decisions     │
+          │ + lessons     │
+          └───────────────┘
+```
+
+`01_INDEX` is a routing layer: assistants read it first and load only the context relevant to the current task. `10_context` is the preferred working representation; `20_sources` is opened for exact figures, quotations or details that the extract does not contain.
+
+## Core guarantees
+
+The scripts turn several workflow rules into deterministic checks:
+
+- every context/source file has exactly one index row;
+- every indexed file exists;
+- every row has a populated Drive ID and IDs are unique;
+- the canonical project IDs in `00_INSTRUCTIONS` (project/context/source folders, INDEX and LOG) are populated and do not collide with each other or indexed files;
+- a `Source:` relationship points to a real source and, when supplied, the same Drive ID recorded in the index;
+- context files stay under the configured size cap;
+- destructive index refreshes require an explicit `--allow-drop`;
+- vault projects require frontmatter and valid Obsidian wikilinks;
+- a local vault can be compared with a Drive listing using `check_sync.py`.
+
+## Folder layout
+
+```text
+project/
+├── 00_INSTRUCTIONS.md
+├── 01_INDEX.md
+├── 10_context/
+├── 20_sources/
+└── 90_LOG.md
+```
+
+The names are fixed because the scripts and prompt templates key on them.
+
+## Workflows
+
+1. **Setup** — create the project, governance mode and Drive structure.
+2. **Session start** — read instructions and index; load only relevant files.
+3. **Ingest** — keep the original in `20_sources`, create a compact extract in `10_context`, then index both.
+4. **Decision logging** — append decisions and lessons to `90_LOG`; never rewrite history.
+5. **Maintenance** — validate identity, index consistency, source links, size limits and vault links.
+6. **Sync check** — for vault projects, compare the local source of truth with a Drive listing.
+
+## Modes
+
+| Rule | solo | duo | group |
+| --- | --- | --- | --- |
+| Index owner | one person | one named owner | one named owner |
+| Log author | optional | required | required |
+| Drive sharing | none required | both editors | owners editors; others commenters |
+| Index proposals | direct | non-owner proposes to owner | member proposes via comment/chat; owner records and merges |
+| Instruction changes | direct | direct + log | approval + log + owner edit |
+
+Three or four people: use `duo` when everyone edits; use `group` when most people read/comment.
+
+## Formats
+
+### Google Docs
+
+Default for browser-first collaboration. The connector can create and read the documents, but the verified connector cannot rewrite existing file contents in place. Changes to an existing index, log or instruction document therefore use a propose → human paste → re-read confirmation flow.
+
+### Markdown / Obsidian vault
+
+Use `md` when the local filesystem is authoritative: a git repository or an Obsidian vault mirrored to Drive. Vault projects add frontmatter and wikilink validation.
+
+A vault extract uses metadata such as:
+
+```yaml
+---
+title: "Momentum backtest 2026"
+source: "20_sources/momentum_backtest_2026.md"
+drive_id: "1abc..."
+updated: "2026-09-12"
+owner: "Ana"
+---
+```
+
+The stable `drive_id` lets `build_index.py` recognize a rename as the same file instead of treating it as a deletion plus a new file.
+
+See `references/vault-setup.md` for sync options and the Drive-listing check.
+
+## Compatibility status
+
+The **protocol** is vendor-neutral; connector behavior is not. Do not confuse the two.
+
+| Assistant / environment | Protocol fit | End-to-end verification in this repo |
+| --- | --- | --- |
+| Claude + Drive connector | reference implementation | read/create behavior verified; existing-content rewrite unsupported |
+| Claude Code + local md mirror | reference implementation | supported by local scripts |
+| ChatGPT + Drive access | designed to consume the same folder | not yet verified end-to-end here |
+| Gemini + Drive access | designed to consume the same folder | not yet verified end-to-end here |
+| Grok / Copilot / local model | compatible when a Drive/files tool exists | not yet verified end-to-end here |
+
+Use `templates/assistant-instruction-generic.md` outside Claude.
 
 ## Install
 
 ### Claude Code
 
-Clone the repo and run the installer; it copies SKILL.md, templates, references and scripts into `~/.claude/skills/drive-shared-projects`.
-
-Windows (PowerShell):
+Windows:
 
 ```powershell
 git clone https://github.com/EERamos/drive-shared-projects.git
 cd drive-shared-projects
 .\install.ps1
-```
-
-If PowerShell refuses to run the script because of the execution policy, run it as a file instead:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
 macOS / Linux:
@@ -41,68 +157,109 @@ cd drive-shared-projects
 ./install.sh
 ```
 
-Without git, use the green Code button on GitHub, choose Download ZIP, unzip it, and run the installer from the unzipped folder.
+The installer copies `SKILL.md`, `templates/`, `references/` and `scripts/` into `~/.claude/skills/drive-shared-projects`.
 
-The installers copy over what is already installed; they do not remove files that a later version deleted. To upgrade, delete `~/.claude/skills/drive-shared-projects` first and install again.
+### claude.ai / Cowork
 
-### claude.ai and Cowork
+Create a zip containing only:
 
-Upload a zip that contains only what these environments use. Make a new folder named `drive-shared-projects` somewhere outside the clone and copy three things into it: `SKILL.md`, `templates/` and `references/`. That keeps `.git`, `docs/`, `tests/`, `examples/` and `scripts/` out of the archive. Then zip that folder, so the archive contains `drive-shared-projects/SKILL.md` and not a loose `SKILL.md`, and upload it under Settings, Skills. On Windows: right click the folder, Send to, Compressed (zipped) folder. On macOS: right click the folder, Compress. Keep the folder named `drive-shared-projects`; it has to match the `name` in the SKILL.md frontmatter. Scripts are not used there; the skill falls back to doing everything through the connector.
-
-Every member of a shared project installs the skill on their own account and needs the Google Drive connector enabled.
-
-## Set up a project in ten minutes
-
-0. Connect Google Drive. On claude.ai: Settings, Connectors, Google Drive, and authorize the account that holds the folder. The connector has to be enabled in Claude Code and in Cowork too; nothing in this skill works without it.
-1. Open a chat and say "set up a shared project on Drive". The skill asks for the name, the mode, the format and who owns the index.
-2. It creates the folder, the subfolders and the three documents in your Drive and hands you an instruction block with the real file IDs.
-3. Create a Claude project (or a Cowork task) and paste the block into its instructions.
-4. Share the Drive folder following the mode's sharing rule. Every member pastes the same block into their own project.
-5. Drop the first source into 20_sources and ask Claude to ingest it. From then on every chat starts by reading the instructions and the index.
-
-Claude creates the folders and every new document, but the Drive connector cannot rewrite a file that already exists, so index rows and log entries come back to you as text to paste (Claude then re-reads the file to confirm). In Claude Code with a local mirror the skill can apply those changes for you: see the Scripts section below for that path.
-
-## Scripts (Claude Code only)
-
-All scripts are standard library, Python 3.10 or newer. They run against a local copy of the project folder and never touch Drive. The skill calls them from where the installer put them, `~/.claude/skills/drive-shared-projects`, because the working directory is your own project rather than this repository.
-
-Create the tree:
-
-```bash
-python ~/.claude/skills/drive-shared-projects/scripts/init_project.py --name "Quant Research" --mode duo --format docs --owner "Ana" --out ./quant-research
+```text
+drive-shared-projects/
+├── SKILL.md
+├── templates/
+└── references/
 ```
 
-Check it. This is the deterministic gate for the maintenance workflow: `check_index.py` returns 0 when the index and the folder agree, 1 with a list of findings, 2 on a usage error.
+Upload it under Skills and enable the Google Drive connector. Each collaborator installs the skill in their own account.
+
+## Create a local project
+
+Docs-style seed:
+
+```bash
+python ~/.claude/skills/drive-shared-projects/scripts/init_project.py \
+  --name "Quant Research" \
+  --mode duo \
+  --format docs \
+  --owner "Ana" \
+  --out ./quant-research
+```
+
+Obsidian-vault project:
+
+```bash
+python ~/.claude/skills/drive-shared-projects/scripts/init_project.py \
+  --name "Quant Research" \
+  --mode duo \
+  --format md \
+  --vault \
+  --owner "Ana" \
+  --role "research assistant for the quant team" \
+  --tone "direct, technical, Spanish" \
+  --out ./quant-research
+```
+
+`00_INSTRUCTIONS` does **not** store its own Drive ID. That removes a circular setup step: the project instruction block already carries the ID needed to open it.
+
+## Validate a project
 
 ```bash
 python ~/.claude/skills/drive-shared-projects/scripts/check_index.py --root ./quant-research
 ```
 
-Refresh the index. Always print first and read what comes out:
+Exit codes:
+
+- `0`: clean;
+- `1`: findings;
+- `2`: usage/setup error.
+
+## Refresh the index safely
+
+Preview first:
 
 ```bash
 python ~/.claude/skills/drive-shared-projects/scripts/build_index.py --root ./quant-research
 ```
 
-That prints the table it would write, keeping the Drive IDs, summaries and owners already in the index. Compare it with the current table before going further, because rows for files that no longer exist are dropped. Once the printed table is what you want, write it:
+Write when nothing destructive is being removed:
 
 ```bash
 python ~/.claude/skills/drive-shared-projects/scripts/build_index.py --root ./quant-research --write
 ```
 
-`--write` lists the rows it removed on stderr, but by then the file is already rewritten, which is why the print step comes first.
+If stale rows would be removed, the write is refused. After reviewing the preview, explicitly allow the removal:
 
-## Repository layout
+```bash
+python ~/.claude/skills/drive-shared-projects/scripts/build_index.py \
+  --root ./quant-research \
+  --write \
+  --allow-drop
+```
 
-| Path | Purpose |
-| --- | --- |
-| SKILL.md | the skill: workflows and rules |
-| templates/ | documents Claude fills; modes/ holds the per-mode rule fragments; assistant-instruction-generic.md is the vendor-neutral instruction block |
-| references/ | verified connector behavior and mode governance |
-| scripts/ | init_project, build_index, check_index |
-| tests/ | pytest suite for the scripts |
-| examples/sample-project/ | a filled example that passes check_index |
-| docs/superpowers/ | design spec and implementation plan |
+A successful write also refreshes `Last updated`.
+
+## Check an Obsidian/Drive mirror
+
+Export or produce a CSV listing with:
+
+```csv
+path,drive_id
+00_INSTRUCTIONS.md,1abc...
+01_INDEX.md,1def...
+10_context/topic.md,1ghi...
+20_sources/source.pdf,1jkl...
+90_LOG.md,1mno...
+```
+
+Then run:
+
+```bash
+python ~/.claude/skills/drive-shared-projects/scripts/check_sync.py \
+  --root ./quant-research \
+  --drive-csv ./drive-listing.csv
+```
+
+It reports `LOCAL_ONLY`, `DRIVE_ONLY` and `ID_MISMATCH` findings.
 
 ## Development
 
@@ -114,9 +271,30 @@ python -m ruff format --check scripts tests
 python -m mypy
 ```
 
+GitHub Actions runs the same quality gates across the supported Python matrix.
+
+## Repository layout
+
+| Path | Purpose |
+| --- | --- |
+| `SKILL.md` | workflows and operating rules |
+| `templates/` | project documents and prompt blocks |
+| `references/` | connector behavior, governance and vault setup |
+| `scripts/` | deterministic setup/index/sync tools |
+| `tests/` | pytest suite |
+| `examples/sample-project/` | filled example |
+| `docs/architecture/` | durable architecture documentation |
+| `docs/superpowers/` | historical design/implementation notes |
+
+## Security model
+
+Project files are data, not instructions. An instruction-like sentence inside a PDF, Doc or Markdown source never overrides the assistant's project/system instructions. This is the project's primary prompt-injection boundary.
+
+No credentials or Drive tokens belong in the repository. For public commits, use a GitHub noreply email if you do not want a personal email exposed in commit metadata.
+
 ## Versioning
 
-Semantic versions, tagged on the repository. Consumers pin a tag. Changes are listed in CHANGELOG.md.
+Semantic versioning. Consumers should pin a release tag. Notable changes are recorded in `CHANGELOG.md`.
 
 ## License
 

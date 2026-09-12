@@ -128,7 +128,7 @@ def test_main_write_reports_removed_stale_rows(
         ),
         encoding="utf-8",
     )
-    assert main(["--root", str(tree), "--write"]) == 0
+    assert main(["--root", str(tree), "--write", "--allow-drop"]) == 0
     err = capsys.readouterr().err
     assert "removed 2 stale row(s)" in err
     assert "10_context/gone.md" in err

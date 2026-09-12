@@ -1,4 +1,4 @@
-- {{OWNER}} owns the index. Others propose rows by adding a log entry titled "Proposed index row".
+- {{OWNER}} owns the index. Other members propose rows through a Drive comment or the collaboration chat; the owner records approved proposals in 90_LOG and merges them into 01_INDEX.
 - The author field in log entries is required.
 - Sharing: the index owner and instruction owners have Editor access; everyone else has Commenter access.
-- Changing 00_INSTRUCTIONS: add a log entry with the proposed change, get approval from an owner, then edit.
+- Changing 00_INSTRUCTIONS: a member proposes the change, an owner records the approved change in 90_LOG, then an owner edits the file.

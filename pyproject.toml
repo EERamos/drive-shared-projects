@@ -2,8 +2,8 @@
 # standalone modules run with python scripts/<name>.py, not an importable package.
 [project]
 name = "drive-shared-projects"
-version = "0.1.0"
-description = "Claude skill that replicates shared projects on top of a Google Drive folder"
+version = "0.2.0"
+description = "Portable Drive-backed shared memory and governance for AI-assisted projects"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "Edgar Ramos" }]
@@ -24,7 +24,7 @@ extend-exclude = ["examples"]
 select = ["E", "F", "I", "UP", "B", "ANN"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["common", "init_project", "build_index", "check_index"]
+known-first-party = ["common", "init_project", "build_index", "check_index", "check_sync"]
 
 [tool.mypy]
 python_version = "3.10"
