@@ -34,9 +34,7 @@ _LEADING_PREFIX = re.compile(r"^[\d_\-\s]+")
 _NON_ALNUM = re.compile(r"[^a-z0-9]+")
 _PLACEHOLDER = re.compile(r"\{\{([A-Z_]+)\}\}")
 _LAST_UPDATED = re.compile(r"(Last updated:\s*)\d{4}-\d{2}-\d{2}")
-_SOURCE_LINE = re.compile(
-    r"^Source:\s+(.+?)(?:\s+\(Drive ID:\s*([^\)]+)\))?\s*$", re.MULTILINE
-)
+_SOURCE_LINE = re.compile(r"^Source:\s+(.+?)(?:\s+\(Drive ID:\s*([^\)]+)\))?\s*$", re.MULTILINE)
 _WIKILINK = re.compile(r"\[\[([^\]]+)\]\]")
 _DRIVE_ID_LINE = re.compile(r"^-\s+([^:]+):\s*(\S+)\s*$", re.MULTILINE)
 
