@@ -43,7 +43,7 @@ def _write_index(root: Path, rows: list[IndexRow], date: str = "2026-09-01") -> 
 
 
 def test_frontmatter_and_wikilinks_helpers() -> None:
-    text = "---\ntitle: \"A\"\ndrive_id: id1\n---\n# A\n[[B|label]] [[sub/C#part]]"
+    text = '---\ntitle: "A"\ndrive_id: id1\n---\n# A\n[[B|label]] [[sub/C#part]]'
     assert parse_frontmatter(text) == {"title": "A", "drive_id": "id1"}
     assert wikilink_targets(text) == ["B", "sub/C"]
 
@@ -86,13 +86,11 @@ def test_build_write_refuses_drop_and_refreshes_date(tmp_path: Path) -> None:
 def test_scan_reads_title_drive_id_and_owner_from_frontmatter(tmp_path: Path) -> None:
     root = _base_tree(tmp_path, vault=True)
     (root / CONTEXT_DIR / "renamed.md").write_text(
-        "---\ntitle: \"Stable title\"\nsource: \"20_sources/x.pdf\"\n"
-        "drive_id: \"id-9\"\nupdated: \"2026-09-12\"\nowner: \"Ana\"\n---\n# Other\n",
+        '---\ntitle: "Stable title"\nsource: "20_sources/x.pdf"\n'
+        'drive_id: "id-9"\nupdated: "2026-09-12"\nowner: "Ana"\n---\n# Other\n',
         encoding="utf-8",
     )
-    assert scan(root) == [
-        IndexRow("10_context/renamed.md", "id-9", "Stable title", "", "Ana")
-    ]
+    assert scan(root) == [IndexRow("10_context/renamed.md", "id-9", "Stable title", "", "Ana")]
 
 
 def test_check_reports_missing_and_duplicate_drive_ids(tmp_path: Path) -> None:
@@ -161,13 +159,13 @@ def test_valid_vault_extract_passes(tmp_path: Path) -> None:
     root = _base_tree(tmp_path, vault=True)
     (root / SOURCES_DIR / "a.pdf").write_bytes(b"pdf")
     (root / CONTEXT_DIR / "b.md").write_text(
-        "---\ntitle: \"B\"\nsource: \"20_sources/a.pdf\"\ndrive_id: \"b-id\"\n"
-        "updated: \"2026-09-12\"\nowner: \"Ana\"\n---\n# B\n",
+        '---\ntitle: "B"\nsource: "20_sources/a.pdf"\ndrive_id: "b-id"\n'
+        'updated: "2026-09-12"\nowner: "Ana"\n---\n# B\n',
         encoding="utf-8",
     )
     (root / CONTEXT_DIR / "a.md").write_text(
-        "---\ntitle: \"A\"\nsource: \"20_sources/a.pdf\"\ndrive_id: \"a-id\"\n"
-        "updated: \"2026-09-12\"\nowner: \"Ana\"\n---\n# A\n\n"
+        '---\ntitle: "A"\nsource: "20_sources/a.pdf"\ndrive_id: "a-id"\n'
+        'updated: "2026-09-12"\nowner: "Ana"\n---\n# A\n\n'
         "Source: 20_sources/a.pdf (Drive ID: src)\n[[b]]\n",
         encoding="utf-8",
     )
