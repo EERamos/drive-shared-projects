@@ -112,7 +112,12 @@ def check_sync(root: Path, drive_rows: dict[str, str]) -> list[SyncFinding]:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Compare a project with a Drive listing CSV.")
     parser.add_argument("--root", required=True, type=Path, help="Local project folder.")
-    parser.add_argument("--drive-csv", required=True, type=Path, help="CSV with path,drive_id columns.")
+    parser.add_argument(
+        "--drive-csv",
+        required=True,
+        type=Path,
+        help="CSV with path,drive_id columns.",
+    )
     return parser
 
 
