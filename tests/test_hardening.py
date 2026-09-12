@@ -3,7 +3,8 @@ from __future__ import annotations
 import datetime as dt
 from pathlib import Path
 
-from build_index import EXIT_REFUSED, dropped_rows, main as build_main, merge, scan
+from build_index import EXIT_REFUSED, dropped_rows, merge, scan
+from build_index import main as build_main
 from check_index import FindingKind, check
 from common import (
     CONTEXT_DIR,
@@ -18,7 +19,8 @@ from common import (
     source_reference,
     wikilink_targets,
 )
-from init_project import EXIT_USAGE, create_project, main as init_main
+from init_project import EXIT_USAGE, create_project
+from init_project import main as init_main
 
 
 def _base_tree(tmp_path: Path, *, vault: bool = False) -> Path:
