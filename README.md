@@ -56,6 +56,7 @@ The scripts turn several workflow rules into deterministic checks:
 - every context/source file has exactly one index row;
 - every indexed file exists;
 - every row has a populated Drive ID and IDs are unique;
+- `00_INSTRUCTIONS` is readable and carries a Drive IDs section;
 - the canonical project IDs in `00_INSTRUCTIONS` (project/context/source folders, INDEX and LOG) are populated and do not collide with each other or indexed files;
 - a `Source:` relationship points to a real source and, when supplied, the same Drive ID recorded in the index;
 - context files stay under the configured size cap;

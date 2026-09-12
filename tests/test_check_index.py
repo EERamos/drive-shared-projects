@@ -232,6 +232,26 @@ def test_main_missing_sources_dir_is_usage_error(
     assert SOURCES_DIR in capsys.readouterr().err
 
 
+def test_unreadable_instructions_is_reported(clean_tree: Path) -> None:
+    (clean_tree / INSTRUCTIONS_FILE).write_bytes("Drive IDs caf\xe9\n".encode("latin-1"))
+    findings = check(clean_tree)
+    assert [f.kind for f in findings] == [FindingKind.UNREADABLE]
+    assert findings[0].path == INSTRUCTIONS_FILE
+    assert findings[0].detail.startswith("UnicodeDecodeError: ")
+
+
+def test_missing_drive_ids_section_is_reported(clean_tree: Path) -> None:
+    (clean_tree / INSTRUCTIONS_FILE).write_text("# Project\n\nNo identities here.\n", "utf-8")
+    findings = check(clean_tree)
+    assert findings == [
+        Finding(
+            FindingKind.MISSING_PROJECT_ID,
+            INSTRUCTIONS_FILE,
+            "Drive IDs section is missing",
+        )
+    ]
+
+
 def test_main_missing_instructions_is_usage_error(
     clean_tree: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

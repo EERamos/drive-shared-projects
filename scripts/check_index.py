@@ -6,9 +6,9 @@ Findings:
     DUPLICATE_ROW           same file appears more than once in the index
     MISSING_DRIVE_ID        index row still has TODO-ID or an empty ID
     DUPLICATE_DRIVE_ID      one populated Drive ID is assigned to multiple rows
-    MISSING_PROJECT_ID       required canonical project ID is absent/TODO-ID
+    MISSING_PROJECT_ID       canonical project ID absent/TODO-ID, or no Drive IDs section
     DUPLICATE_PROJECT_ID     canonical project IDs collide with each other or index rows
-    UNREADABLE              context file is not readable UTF-8 text
+    UNREADABLE              context file or 00_INSTRUCTIONS is not readable UTF-8 text
     TOO_LARGE               context file exceeds the configured character cap
     DUPLICATE_TOPIC         likely extract/source pair has no Source: relationship
     INVALID_SOURCE_REFERENCE Source: path or Drive ID does not match the project
@@ -33,6 +33,7 @@ from pathlib import Path
 from common import (
     CONTEXT_DIR,
     DEFAULT_MAX_CHARS,
+    DRIVE_IDS_HEADING,
     FRONTMATTER_REQUIRED,
     INDEX_FILE,
     INSTRUCTIONS_FILE,
@@ -212,12 +213,23 @@ def check(root: Path, max_chars: int = DEFAULT_MAX_CHARS) -> list[Finding]:
             )
 
     instructions_path = root / INSTRUCTIONS_FILE
-    if instructions_path.is_file():
-        try:
-            instructions_text = read_text(instructions_path)
-        except (UnicodeDecodeError, OSError):
-            instructions_text = ""
-        if "## Drive IDs" in instructions_text:
+    try:
+        instructions_text: str | None = read_text(instructions_path)
+    except (UnicodeDecodeError, OSError) as exc:
+        findings.append(
+            Finding(FindingKind.UNREADABLE, INSTRUCTIONS_FILE, f"{type(exc).__name__}: {exc}")
+        )
+        instructions_text = None
+    if instructions_text is not None:
+        if DRIVE_IDS_HEADING not in instructions_text:
+            findings.append(
+                Finding(
+                    FindingKind.MISSING_PROJECT_ID,
+                    INSTRUCTIONS_FILE,
+                    "Drive IDs section is missing",
+                )
+            )
+        else:
             project_ids = instruction_drive_ids(instructions_text)
             required_labels = (
                 "Project folder",

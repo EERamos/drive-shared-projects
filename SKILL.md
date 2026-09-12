@@ -120,6 +120,7 @@ The validator checks:
 
 - missing/stale/duplicate index rows;
 - missing and duplicate Drive IDs in index rows;
+- a missing or unreadable Drive IDs section in `00_INSTRUCTIONS`;
 - missing/colliding canonical project IDs recorded in `00_INSTRUCTIONS`;
 - unreadable/oversized context files;
 - likely duplicate topics without an explicit `Source:` relationship;

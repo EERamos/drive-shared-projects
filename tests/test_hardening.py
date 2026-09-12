@@ -29,7 +29,13 @@ def _base_tree(tmp_path: Path, *, vault: bool = False) -> Path:
     (tmp_path / SOURCES_DIR).mkdir()
     (tmp_path / INSTRUCTIONS_FILE).write_text(
         "# Project\n\nMode: solo. Format: md. Index owner: Ana. Created: 2026-09-12.\n"
-        + ("Vault: yes.\n" if vault else "Vault: no.\n"),
+        + ("Vault: yes.\n" if vault else "Vault: no.\n")
+        + "\n## Drive IDs\n\n"
+        "- Project folder: project-folder-id\n"
+        "- 10_context folder: context-folder-id\n"
+        "- 20_sources folder: sources-folder-id\n"
+        "- 01_INDEX: index-file-id\n"
+        "- 90_LOG: log-file-id\n",
         encoding="utf-8",
     )
     (tmp_path / LOG_FILE).write_text("# Log\n", encoding="utf-8")

@@ -17,6 +17,7 @@ LOG_FILE = "90_LOG.md"
 CONTEXT_DIR = "10_context"
 SOURCES_DIR = "20_sources"
 ID_PLACEHOLDER = "TODO-ID"
+DRIVE_IDS_HEADING = "## Drive IDs"
 DEFAULT_MAX_CHARS = 50_000
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 
