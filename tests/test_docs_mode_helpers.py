@@ -22,6 +22,7 @@ from common import (
     missing_canonical_ids,
     normalize_connector_markdown,
     parse_drive_csv,
+    parse_drive_csv_rows,
     parse_index,
     parse_listing,
     source_reference,
@@ -192,12 +193,25 @@ def test_parse_listing_accepts_a_bare_list_and_the_name_key() -> None:
     assert entry.is_folder
 
 
-def test_parse_listing_reads_a_path_csv() -> None:
-    entries = parse_listing("path,drive_id\n10_context/topic.md,1abc\n20_sources/source.pdf,\n")
+def test_parse_listing_reads_a_path_csv_keeping_duplicate_paths() -> None:
+    entries = parse_listing(
+        "path,drive_id\n10_context/topic.md,1abc\n20_sources/source.pdf,\n10_context/topic.md,1d\n"
+    )
     assert entries == [
         DriveEntry("1abc", "topic.md", "", None, "10_context/topic.md"),
         DriveEntry("", "source.pdf", "", None, "20_sources/source.pdf"),
+        DriveEntry("1d", "topic.md", "", None, "10_context/topic.md"),
     ]
+
+
+def test_parse_drive_csv_rows_preserves_order_and_the_dict_keeps_the_last() -> None:
+    text = "path,drive_id\n10_context/a.md,1a\n20_sources/b.pdf,1b\n10_context/a.md,1c\n"
+    assert parse_drive_csv_rows(text) == [
+        ("10_context/a.md", "1a"),
+        ("20_sources/b.pdf", "1b"),
+        ("10_context/a.md", "1c"),
+    ]
+    assert parse_drive_csv(text) == {"10_context/a.md": "1c", "20_sources/b.pdf": "1b"}
 
 
 @pytest.mark.parametrize(

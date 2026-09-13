@@ -44,6 +44,9 @@ a throwaway project folder created with the v0.2.0 templates. The samples live u
 | Question | Decision |
 | --- | --- |
 | Where does the Drive listing come from | Claude saves the connector tool results verbatim to local files. No Drive API, no OAuth, standard library only, as in v0.2.0. Plain Markdown and a `path,drive_id` CSV remain accepted. |
+| Identity of a listing | One flag per folder: `--context-listing` and `--sources-listing` are mandatory, `--project-listing` optional. An empty listing means an empty folder. Entries whose `parentId` (JSON) or path (CSV) belongs to another folder are a usage error. The checker therefore cannot report clean while a folder is unchecked. |
+| Both variants of a canonical file present | `DUPLICATE_CANONICAL_FILE` (for example `01_INDEX` and `01_INDEX.md`); the ID check for that name waits until one variant is removed. |
+| Duplicate paths in a CSV listing | Kept by `parse_drive_csv_rows`, so `DUPLICATE_TITLE` applies to CSV too. `parse_drive_csv`, used by `check_sync.py`, keeps the last ID per path as before. |
 | Identity of a Docs file in the index | `10_context/<Drive title>`. Docs have no extension; uploaded originals keep their file name. Titles must be unique inside a folder because the index addresses files by path. |
 | Nested folders inside `10_context` or `20_sources` | Reported as `NESTED_FOLDER`. The protocol prescribes flat folders; the check does not follow nested listings. |
 | A file renamed in Drive | Reported once as `RENAMED_FILE` (same Drive ID, different title), not as a stale row plus a missing row. |
@@ -59,15 +62,16 @@ a throwaway project folder created with the v0.2.0 templates. The samples live u
     backslash unescape (keeping `\|`), index table rebuild, blank-line collapse.
   - `connector_markdown(raw)`: unwraps a saved `read_file_content` result or accepts Markdown,
     then normalizes.
-  - `DriveEntry`, `parse_listing(raw)`, `parse_drive_csv(text)`: one loader for connector JSON
-    and CSV listings. `check_sync.py` reuses the CSV part.
+  - `DriveEntry`, `parse_listing(raw)`, `parse_drive_csv_rows(text)`, `parse_drive_csv(text)`:
+    one loader for connector JSON and CSV listings. `check_sync.py` reuses the CSV part.
   - `CANONICAL_LABELS`, `missing_canonical_ids`, `canonical_id_collisions`,
     `duplicate_row_counts`, `duplicate_drive_id_paths`, `first_rows_by_file`: helpers shared by
     `check_index.py` and the new script so the two report identical findings.
   - `source_reference`: tolerates the `Extracted:` tail that Docs joins onto the `Source:` line.
-- `check_drive.py`: `check_drive(instructions_text, index_text, entries)` returns findings;
-  `main` reads files, unwraps envelopes, turns malformed input and listings for unknown folders
-  into exit 2.
+- `check_drive.py`: `check_drive(instructions_text, index_text, listings)` takes one `Listing`
+  per folder and returns findings; `main` reads the files behind `--context-listing`,
+  `--sources-listing` and `--project-listing`, unwraps envelopes, and turns malformed input,
+  a folder without a recorded ID and foreign entries into exit 2.
 
 ## 5. Findings and exit codes
 
@@ -81,14 +85,16 @@ a throwaway project folder created with the v0.2.0 templates. The samples live u
 | `NESTED_FOLDER` | a folder inside `10_context` or `20_sources` |
 | `DUPLICATE_TITLE` | two Drive entries share a path |
 | `MISSING_CANONICAL_FILE` | a root listing lacks one of the five fixed entries |
+| `DUPLICATE_CANONICAL_FILE` | both variants of a fixed entry exist, such as `01_INDEX` and `01_INDEX.md` |
 | `UNEXPECTED_FILE` | a root entry outside the fixed layout |
 | `RENAMED_FILE` | an index row's Drive ID now carries a different title |
 | `MISSING_ROW` | a Drive file without an index row |
 | `STALE_ROW` | an index row without a Drive file |
 | `ID_MISMATCH` | index and Drive disagree on the ID of the same path |
 
-Exit `0` clean, `1` findings, `2` usage error (unreadable file, malformed listing, listing whose
-parent folder is not recorded in `00_INSTRUCTIONS`, or a JSON document without `fileContent`).
+Exit `0` clean, `1` findings, `2` usage error (unreadable file, malformed listing, a listed
+folder without an ID in `00_INSTRUCTIONS`, entries that belong to another folder, or a JSON
+document without `fileContent`).
 
 ## 6. Workflow changes
 
@@ -129,3 +135,13 @@ parent folder is not recorded in `00_INSTRUCTIONS`, or a JSON document without `
   the exit codes; the clean fixture project must exit 0.
 - Existing suites unchanged in behaviour: `check_index` and `check_sync` keep their outputs while
   sharing the extracted helpers.
+
+## 10. Review round (2026-09-13)
+
+The maintainer asked for three changes before merging; all three are in this design:
+
+1. Explicit, mandatory listings per content folder, so an empty listing keeps its identity and a
+   folder can never go unchecked (section 3, "Identity of a listing").
+2. Both variants of a canonical file reported instead of silently taking the first one
+   (`DUPLICATE_CANONICAL_FILE`).
+3. Duplicate paths preserved in CSV listings so `DUPLICATE_TITLE` applies there too.

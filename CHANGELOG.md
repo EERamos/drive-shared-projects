@@ -6,7 +6,8 @@ All notable changes to this project are documented here. The format follows Keep
 
 ### Added
 
-- `check_drive.py`: validates `01_INDEX` against Drive listings saved from the connector (`read_file_content` and `search_files` results; Markdown and `path,drive_id` CSV accepted too). Reports missing/stale rows, renames by stable ID, ID mismatches, duplicate titles, nested folders and, with a project listing, the fixed layout and the canonical IDs.
+- `check_drive.py`: validates `01_INDEX` against Drive listings saved from the connector (`read_file_content` and `search_files` results; Markdown and `path,drive_id` CSV accepted too). One listing per folder: `--context-listing` and `--sources-listing` are mandatory and bound to their folder, `--project-listing` is optional. Reports missing/stale rows, renames by stable ID, ID mismatches, duplicate titles, nested folders and, with a project listing, the fixed layout, both variants of a canonical file and the canonical IDs.
+- `parse_drive_csv_rows` keeps duplicate CSV paths, so `DUPLICATE_TITLE` also applies to CSV listings; `check_sync` keeps the last ID per path as before.
 - `common.connector_markdown` and `normalize_connector_markdown`: turn Markdown as the connector returns it (escaped punctuation, indented bullets, bold index header above an empty row, `<!-- end list -->`) into what the parsers expect.
 - Connector samples captured on 2026-09-13 under `tests/fixtures/connector/`, anonymised, with the behaviour recorded in `references/drive-connector-behavior.md`.
 - SKILL.md: Docs-format maintenance procedure for Claude Code and the manual equivalent for claude.ai; what "paste" means for an index row and a log entry in Docs.

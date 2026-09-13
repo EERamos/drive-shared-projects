@@ -225,12 +225,14 @@ A Docs project has no local tree, so the check runs on the connector's own resul
 python ~/.claude/skills/drive-shared-projects/scripts/check_drive.py \
   --instructions 00_INSTRUCTIONS.json \
   --index 01_INDEX.json \
-  --listing 10_context.json \
-  --listing 20_sources.json \
-  --listing project.json
+  --context-listing 10_context.json \
+  --sources-listing 20_sources.json \
+  --project-listing project.json
 ```
 
-It reports `MISSING_ROW`, `STALE_ROW`, `RENAMED_FILE`, `ID_MISMATCH`, `DUPLICATE_TITLE`, `NESTED_FOLDER`, the index-structure and canonical-ID findings of `check_index.py`, and with the project listing `MISSING_CANONICAL_FILE` and `UNEXPECTED_FILE`. Same exit codes. Plain Markdown documents and `path,drive_id` CSV listings are accepted as well.
+The two content listings are mandatory and each is bound to its folder: an empty result means an empty folder, and entries that belong to another folder are a usage error, so the check can never report clean with a folder unchecked. The project listing is optional and adds the fixed-layout checks.
+
+It reports `MISSING_ROW`, `STALE_ROW`, `RENAMED_FILE`, `ID_MISMATCH`, `DUPLICATE_TITLE`, `NESTED_FOLDER`, the index-structure and canonical-ID findings of `check_index.py`, and with the project listing `MISSING_CANONICAL_FILE`, `DUPLICATE_CANONICAL_FILE` and `UNEXPECTED_FILE`. Same exit codes. Plain Markdown documents and `path,drive_id` CSV listings, one per folder, are accepted as well; duplicate paths in a CSV are kept and reported.
 
 ## Refresh the index safely
 

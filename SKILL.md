@@ -122,12 +122,14 @@ In Claude Code:
 
    ```bash
    python <skill>/scripts/check_drive.py --instructions 00_INSTRUCTIONS.json --index 01_INDEX.json \
-     --listing 10_context.json --listing 20_sources.json --listing project.json
+     --context-listing 10_context.json --sources-listing 20_sources.json --project-listing project.json
    ```
+
+   Both content listings are mandatory and each is bound to its folder: an empty result means an empty folder, and entries that belong to another folder are a usage error, so a folder can never go unchecked.
 
 4. Propose the index edits the findings call for, the owner applies them, run the check again.
 
-It reports `MISSING_ROW`, `STALE_ROW`, `RENAMED_FILE` (same Drive ID, new title), `ID_MISMATCH`, `DUPLICATE_TITLE`, `NESTED_FOLDER`, `MISSING_DRIVE_ID`, `DUPLICATE_DRIVE_ID`, `DUPLICATE_ROW`, the canonical-ID findings of `00_INSTRUCTIONS` and, with a project listing, `MISSING_CANONICAL_FILE` and `UNEXPECTED_FILE`. Exit `0` means clean, `1` findings, `2` usage error (malformed input, or a listing whose parent folder is not in the Drive IDs section). Markdown documents and `path,drive_id` CSV listings are accepted too.
+It reports `MISSING_ROW`, `STALE_ROW`, `RENAMED_FILE` (same Drive ID, new title), `ID_MISMATCH`, `DUPLICATE_TITLE`, `NESTED_FOLDER`, `MISSING_DRIVE_ID`, `DUPLICATE_DRIVE_ID`, `DUPLICATE_ROW`, the canonical-ID findings of `00_INSTRUCTIONS` and, with a project listing, `MISSING_CANONICAL_FILE`, `DUPLICATE_CANONICAL_FILE` (both `01_INDEX` and `01_INDEX.md` exist) and `UNEXPECTED_FILE`. Exit `0` means clean, `1` findings, `2` usage error (malformed input, a folder without a recorded ID, or entries listed under the wrong folder). Markdown documents and `path,drive_id` CSV listings, one per folder, are accepted too.
 
 Outside Claude Code (claude.ai, Cowork) do the same comparison by hand: list both folders by their recorded IDs, then for every listed file look for its `folder/title` row and compare the ID, and for every row look for its file. Report with the same finding names and propose the edits.
 

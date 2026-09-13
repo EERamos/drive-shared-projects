@@ -519,18 +519,23 @@ class DriveEntry:
         return self.mime_type == FOLDER_MIME_TYPE
 
 
-def parse_drive_csv(text: str) -> dict[str, str]:
-    """Read `path,drive_id` rows from CSV text; paths use `/` and blank paths are skipped."""
+def parse_drive_csv_rows(text: str) -> list[tuple[str, str]]:
+    """`(path, drive_id)` rows of a CSV in file order, duplicates included, blank paths skipped."""
     reader = csv.DictReader(io.StringIO(text, newline=""))
     if reader.fieldnames is None or not {"path", "drive_id"}.issubset(reader.fieldnames):
         raise ValueError("CSV must contain path and drive_id columns")
-    rows: dict[str, str] = {}
+    rows: list[tuple[str, str]] = []
     for row in reader:
         rel = (row.get("path") or "").strip().replace("\\", "/")
         drive_id = (row.get("drive_id") or "").strip()
         if rel:
-            rows[rel] = drive_id
+            rows.append((rel, drive_id))
     return rows
+
+
+def parse_drive_csv(text: str) -> dict[str, str]:
+    """Drive ID by path from a `path,drive_id` CSV; a repeated path keeps its last ID."""
+    return dict(parse_drive_csv_rows(text))
 
 
 def parse_listing(raw: str) -> list[DriveEntry]:
@@ -544,7 +549,7 @@ def parse_listing(raw: str) -> list[DriveEntry]:
         return [_entry_from_json(item) for item in items]
     return [
         DriveEntry(drive_id, Path(path).name, "", None, path)
-        for path, drive_id in parse_drive_csv(raw).items()
+        for path, drive_id in parse_drive_csv_rows(raw)
     ]
 
 
