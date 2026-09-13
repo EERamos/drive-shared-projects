@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum, auto
@@ -32,16 +31,19 @@ from pathlib import Path
 from common import (
     CONTEXT_DIR,
     DEFAULT_MAX_CHARS,
-    DRIVE_IDS_HEADING,
     FRONTMATTER_REQUIRED,
     INDEX_FILE,
     INSTRUCTIONS_FILE,
     SOURCES_DIR,
     ExitCode,
     IndexRow,
-    instruction_drive_ids,
+    canonical_id_collisions,
+    duplicate_drive_id_paths,
+    duplicate_row_counts,
+    first_rows_by_file,
     is_real_drive_id,
     is_vault_project,
+    missing_canonical_ids,
     missing_project_paths,
     parse_args_or_exit,
     parse_frontmatter,
@@ -85,18 +87,6 @@ class Finding:
 
 def _context_files(files: Sequence[str]) -> list[str]:
     return [f for f in files if f.startswith(CONTEXT_DIR + "/")]
-
-
-def _is_canonical_location(location: str) -> bool:
-    """Whether an identity location is a canonical label of 00_INSTRUCTIONS."""
-    return location.startswith(INSTRUCTIONS_FILE + ":")
-
-
-def _first_rows(rows: Sequence[IndexRow]) -> dict[str, IndexRow]:
-    by_file: dict[str, IndexRow] = {}
-    for row in rows:
-        by_file.setdefault(row.file, row)
-    return by_file
 
 
 def _markdown_targets(root: Path, files: Sequence[str]) -> set[str]:
@@ -168,7 +158,7 @@ def check(root: Path, max_chars: int = DEFAULT_MAX_CHARS) -> list[Finding]:
     row_files = [row.file for row in rows]
     indexed = set(row_files)
     on_disk = set(files)
-    rows_by_file = _first_rows(rows)
+    rows_by_file = first_rows_by_file(rows)
 
     for rel in files:
         if rel not in indexed:
@@ -176,9 +166,8 @@ def check(root: Path, max_chars: int = DEFAULT_MAX_CHARS) -> list[Finding]:
     for rel in dict.fromkeys(row_files):
         if rel not in on_disk:
             findings.append(Finding(FindingKind.STALE_ROW, rel, "row exists but file is missing"))
-    for rel, count in sorted(Counter(row_files).items()):
-        if count > 1:
-            findings.append(Finding(FindingKind.DUPLICATE_ROW, rel, f"listed {count} times"))
+    for rel, count in duplicate_row_counts(rows):
+        findings.append(Finding(FindingKind.DUPLICATE_ROW, rel, f"listed {count} times"))
 
     for row in rows:
         if not is_real_drive_id(row.drive_id):
@@ -186,20 +175,14 @@ def check(root: Path, max_chars: int = DEFAULT_MAX_CHARS) -> list[Finding]:
                 Finding(FindingKind.MISSING_DRIVE_ID, row.file, "Drive ID is empty or TODO-ID")
             )
 
-    ids: dict[str, list[str]] = {}
-    for row in rows:
-        if is_real_drive_id(row.drive_id):
-            ids.setdefault(row.drive_id, []).append(row.file)
-    for drive_id, paths in sorted(ids.items()):
-        unique_paths = list(dict.fromkeys(paths))
-        if len(unique_paths) > 1:
-            findings.append(
-                Finding(
-                    FindingKind.DUPLICATE_DRIVE_ID,
-                    unique_paths[0],
-                    f"Drive ID {drive_id} also used by " + ", ".join(unique_paths[1:]),
-                )
+    for drive_id, unique_paths in duplicate_drive_id_paths(rows):
+        findings.append(
+            Finding(
+                FindingKind.DUPLICATE_DRIVE_ID,
+                unique_paths[0],
+                f"Drive ID {drive_id} also used by " + ", ".join(unique_paths[1:]),
             )
+        )
 
     instructions_path = root / INSTRUCTIONS_FILE
     try:
@@ -210,7 +193,8 @@ def check(root: Path, max_chars: int = DEFAULT_MAX_CHARS) -> list[Finding]:
         )
         instructions_text = None
     if instructions_text is not None:
-        if DRIVE_IDS_HEADING not in instructions_text:
+        missing_ids = missing_canonical_ids(instructions_text)
+        if missing_ids is None:
             findings.append(
                 Finding(
                     FindingKind.MISSING_PROJECT_ID,
@@ -219,44 +203,22 @@ def check(root: Path, max_chars: int = DEFAULT_MAX_CHARS) -> list[Finding]:
                 )
             )
         else:
-            project_ids = instruction_drive_ids(instructions_text)
-            required_labels = (
-                "Project folder",
-                "10_context folder",
-                "20_sources folder",
-                "01_INDEX",
-                "90_LOG",
-            )
-            for label in required_labels:
-                value = project_ids.get(label, "")
-                if not is_real_drive_id(value):
-                    findings.append(
-                        Finding(
-                            FindingKind.MISSING_PROJECT_ID,
-                            INSTRUCTIONS_FILE,
-                            f"{label} is empty or TODO-ID",
-                        )
+            for label in missing_ids:
+                findings.append(
+                    Finding(
+                        FindingKind.MISSING_PROJECT_ID,
+                        INSTRUCTIONS_FILE,
+                        f"{label} is empty or TODO-ID",
                     )
-
-            identity_locations: dict[str, list[str]] = {}
-            for row in rows:
-                if is_real_drive_id(row.drive_id):
-                    identity_locations.setdefault(row.drive_id, []).append(row.file)
-            for label in required_labels:
-                value = project_ids.get(label, "")
-                if is_real_drive_id(value):
-                    identity_locations.setdefault(value, []).append(f"{INSTRUCTIONS_FILE}:{label}")
-            for drive_id, locations in sorted(identity_locations.items()):
-                unique_locations = list(dict.fromkeys(locations))
-                canonical = any(_is_canonical_location(loc) for loc in unique_locations)
-                if len(unique_locations) > 1 and canonical:
-                    findings.append(
-                        Finding(
-                            FindingKind.DUPLICATE_PROJECT_ID,
-                            INSTRUCTIONS_FILE,
-                            f"Drive ID {drive_id} reused by " + ", ".join(unique_locations),
-                        )
+                )
+            for drive_id, unique_locations in canonical_id_collisions(instructions_text, rows):
+                findings.append(
+                    Finding(
+                        FindingKind.DUPLICATE_PROJECT_ID,
+                        INSTRUCTIONS_FILE,
+                        f"Drive ID {drive_id} reused by " + ", ".join(unique_locations),
                     )
+                )
 
     vault = is_vault_project(root)
     markdown_targets = _markdown_targets(root, files) if vault else set()

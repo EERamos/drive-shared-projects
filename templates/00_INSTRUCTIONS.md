@@ -35,6 +35,7 @@ Read anything else only when the index says so or the user asks for it.
 - Use flat lists and no emoji in Drive-authored project documents because connector rendering can be lossy.
 - Every indexed file must have one populated, unique Drive ID before the project is considered clean.
 - Every extract with a Source: line must point to a real file under 20_sources and, when an ID is present, the same Drive ID recorded in 01_INDEX.
+- Titles are unique inside 10_context and 20_sources; the index addresses files by folder and title.
 
 ## Mode rules ({{MODE}})
 

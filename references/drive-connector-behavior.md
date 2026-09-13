@@ -1,6 +1,6 @@
 # Google Drive connector behavior
 
-What Claude can expect when it reads and writes a project folder through the Google Drive connector. Read-side items were verified on 2026-09-11 against a real Drive. Creation and update limits were verified on 2026-09-11 against the connector's own tool schemas. The checklist at the end is what a person still has to confirm once per environment.
+What Claude can expect when it reads and writes a project folder through the Google Drive connector. Read-side items were verified on 2026-09-11 and 2026-09-13 against a real Drive; the 2026-09-13 samples are kept, anonymised, under `tests/fixtures/connector/`. Creation and update limits were verified on 2026-09-11 against the connector's own tool schemas. The checklist at the end is what a person still has to confirm once per environment.
 
 ## Verified (read side)
 
@@ -17,6 +17,10 @@ What Claude can expect when it reads and writes a project folder through the Goo
 | Base64 download | Exists, returns the whole file base64-encoded. | Never used; it wastes context. |
 | Markdown table inside a Doc created from Markdown | Comes back with an empty header row on top and the real header as a bold data row; underscores arrive escaped as \_. | Readable for Claude. The scripts parse local files, never connector output, so the index header rule is unaffected. |
 | Plain .md file (created without conversion) | Comes back with Markdown punctuation escaped (\# for headings, \- for bullets) and two trailing spaces per line. | Readable but noisy. Docs format is the more legible choice when the project is not in a vault or repo. |
+| Doc read result (2026-09-13) | `{"fileContent": "..."}`. Underscores escaped in prose, also inside Drive IDs (`1\_UVW...`), and triple-escaped inside table cells (`10\\\_context`). Bullets indented two spaces. The index table comes back with an empty header row, a `:-:` separator and the header cells as `\*\*File\*\*`. | Never feed raw connector output to the local parsers. `common.connector_markdown` normalizes it and `check_drive.py` validates the index from the saved results. |
+| Two consecutive lines in a Doc (2026-09-13) | Joined into one paragraph: `Source: ... (Drive ID: ...) Extracted: ...`. | Templates keep `Source:` and `Extracted:` as separate paragraphs; `source_reference` tolerates the joined form. |
+| Code spans, code fences, blockquotes in a Doc (2026-09-13) | Formatting dropped, text kept. A literal pipe in a cell comes back as `a \| b`. | Project documents do not rely on them. |
+| Folder listing result (2026-09-13) | `{"files": [{"id", "title", "mimeType", "parentId", ...}]}`; Docs carry no `fileExtension`, uploaded files do. | Saved verbatim, it is the listing input of `check_drive.py`. |
 
 The 50,000-character limit is a margin, not a measurement. What was measured is a 30 KB document that arrived complete and a 54 KB one that did not. The exact cutoff between them was never found, so the rule sits below the failure with room to spare.
 

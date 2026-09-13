@@ -62,7 +62,8 @@ The scripts turn several workflow rules into deterministic checks:
 - context files stay under the configured size cap;
 - destructive index refreshes require an explicit `--allow-drop`;
 - vault projects require frontmatter and valid Obsidian wikilinks;
-- a local vault can be compared with a Drive listing using `check_sync.py`.
+- a local vault can be compared with a Drive listing using `check_sync.py`;
+- a Docs project is validated against the real Drive listing with `check_drive.py`: rows, IDs, renames, duplicate titles and the fixed layout.
 
 ## Folder layout
 
@@ -83,7 +84,7 @@ The names are fixed because the scripts and prompt templates key on them.
 2. **Session start** — read instructions and index; load only relevant files.
 3. **Ingest** — keep the original in `20_sources`, create a compact extract in `10_context`, then index both.
 4. **Decision logging** — append decisions and lessons to `90_LOG`; never rewrite history.
-5. **Maintenance** — validate identity, index consistency, source links, size limits and vault links.
+5. **Maintenance** — validate identity, index consistency, source links, size limits and vault links; in Docs format, validate the index against the Drive listing.
 6. **Sync check** — for vault projects, compare the local source of truth with a Drive listing.
 
 ## Modes
@@ -102,7 +103,9 @@ Three or four people: use `duo` when everyone edits; use `group` when most peopl
 
 ### Google Docs
 
-Default for browser-first collaboration. The connector can create and read the documents, but the verified connector cannot rewrite existing file contents in place. Changes to an existing index, log or instruction document therefore use a propose → human paste → re-read confirmation flow.
+Default for browser-first collaboration. The connector can create and read the documents, but the verified connector cannot rewrite existing file contents in place. Changes to an existing index, log or instruction document therefore use a propose → human paste → re-read confirmation flow. In the index, "paste" means inserting a table row and filling its five cells; the File cell is `10_context/<Drive title>` or `20_sources/<file name>`, and titles must be unique inside each folder.
+
+What the connector returns is not the Markdown that was uploaded: punctuation comes back escaped, bullets indented and the index header bold above an empty row. `check_drive.py` consumes those results as saved and validates the index against the real listing (see below).
 
 ### Markdown / Obsidian vault
 
@@ -130,7 +133,7 @@ The **protocol** is vendor-neutral; connector behavior is not. Do not confuse th
 
 | Assistant / environment | Protocol fit | End-to-end verification in this repo |
 | --- | --- | --- |
-| Claude + Drive connector | reference implementation | read/create behavior verified; existing-content rewrite unsupported |
+| Claude + Drive connector | reference implementation | read/create/listing behavior verified; existing-content rewrite unsupported; Docs index validated by `check_drive.py` from saved connector results |
 | Claude Code + local md mirror | reference implementation | supported by local scripts |
 | ChatGPT + Drive access | designed to consume the same folder | not yet verified end-to-end here |
 | Gemini + Drive access | designed to consume the same folder | not yet verified end-to-end here |
@@ -213,6 +216,23 @@ Exit codes:
 - `0`: clean;
 - `1`: findings;
 - `2`: usage/setup error.
+
+## Validate a Docs project
+
+A Docs project has no local tree, so the check runs on the connector's own results. In Claude Code, read `00_INSTRUCTIONS` and `01_INDEX` by ID, list `10_context`, `20_sources` and the project folder with `parentId = '<folder id>'`, and save every tool result verbatim (`{"fileContent": ...}` and `{"files": [...]}`) into a scratch folder. Then:
+
+```bash
+python ~/.claude/skills/drive-shared-projects/scripts/check_drive.py \
+  --instructions 00_INSTRUCTIONS.json \
+  --index 01_INDEX.json \
+  --context-listing 10_context.json \
+  --sources-listing 20_sources.json \
+  --project-listing project.json
+```
+
+The two content listings are mandatory and each is bound to its folder: an empty result means an empty folder, and entries that belong to another folder are a usage error, so the check can never report clean with a folder unchecked. The project listing is optional and adds the fixed-layout checks.
+
+It reports `MISSING_ROW`, `STALE_ROW`, `RENAMED_FILE`, `ID_MISMATCH`, `DUPLICATE_TITLE`, `NESTED_FOLDER`, the index-structure and canonical-ID findings of `check_index.py`, and with the project listing `MISSING_CANONICAL_FILE`, `DUPLICATE_CANONICAL_FILE` and `UNEXPECTED_FILE`. Same exit codes. Plain Markdown documents and `path,drive_id` CSV listings, one per folder, are accepted as well; duplicate paths in a CSV are kept and reported.
 
 ## Refresh the index safely
 

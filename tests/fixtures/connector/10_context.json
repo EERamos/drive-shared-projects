@@ -1,0 +1,29 @@
+{
+  "files": [
+    {
+      "canAddChildren": false,
+      "createdTime": "2026-09-13T17:06:45.543Z",
+      "fileSize": "1960",
+      "id": "1_momentum_doc_000000000000000000000000000-G",
+      "mimeType": "application/vnd.google-apps.document",
+      "modifiedTime": "2026-09-13T17:06:47.591Z",
+      "owner": "owner@example.com",
+      "parentId": "1_context_folder_000000000000000B",
+      "title": "Momentum backtest 2026",
+      "viewUrl": "https://docs.google.com/document/d/1_momentum_doc_000000000000000000000000000-G/edit"
+    },
+    {
+      "canAddChildren": false,
+      "createdTime": "2026-09-13T17:04:13.657Z",
+      "fileExtension": "md",
+      "fileSize": "314",
+      "id": "1_pricing_md_000000000000000000-H",
+      "mimeType": "text/markdown",
+      "modifiedTime": "2026-09-13T17:04:13.657Z",
+      "owner": "owner@example.com",
+      "parentId": "1_context_folder_000000000000000B",
+      "title": "pricing_notes.md",
+      "viewUrl": "https://drive.google.com/file/d/1_pricing_md_000000000000000000-H/view"
+    }
+  ]
+}

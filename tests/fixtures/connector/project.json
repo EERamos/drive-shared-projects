@@ -1,0 +1,62 @@
+{
+  "files": [
+    {
+      "canAddChildren": false,
+      "createdTime": "2026-09-13T17:04:06.229Z",
+      "fileSize": "2937",
+      "id": "1_instructions_doc_00000000000000000000000-F",
+      "mimeType": "application/vnd.google-apps.document",
+      "modifiedTime": "2026-09-13T17:04:08.106Z",
+      "owner": "owner@example.com",
+      "parentId": "1_project_folder_000000000000000A",
+      "title": "00_INSTRUCTIONS",
+      "viewUrl": "https://docs.google.com/document/d/1_instructions_doc_00000000000000000000000-F/edit"
+    },
+    {
+      "canAddChildren": false,
+      "createdTime": "2026-09-13T17:03:34.169Z",
+      "fileSize": "1726",
+      "id": "1_log_doc_00000000000000000000000000000000-E",
+      "mimeType": "application/vnd.google-apps.document",
+      "modifiedTime": "2026-09-13T17:03:35.931Z",
+      "owner": "owner@example.com",
+      "parentId": "1_project_folder_000000000000000A",
+      "title": "90_LOG",
+      "viewUrl": "https://docs.google.com/document/d/1_log_doc_00000000000000000000000000000000-E/edit"
+    },
+    {
+      "canAddChildren": false,
+      "createdTime": "2026-09-13T17:03:29.438Z",
+      "fileSize": "2147",
+      "id": "1_index_doc_000000000000000000000000000000-D",
+      "mimeType": "application/vnd.google-apps.document",
+      "modifiedTime": "2026-09-13T17:03:31.383Z",
+      "owner": "owner@example.com",
+      "parentId": "1_project_folder_000000000000000A",
+      "title": "01_INDEX",
+      "viewUrl": "https://docs.google.com/document/d/1_index_doc_000000000000000000000000000000-D/edit"
+    },
+    {
+      "canAddChildren": true,
+      "createdTime": "2026-09-13T17:03:25.587Z",
+      "id": "1_sources_folder_000000000000000C",
+      "mimeType": "application/vnd.google-apps.folder",
+      "modifiedTime": "2026-09-13T17:03:25.587Z",
+      "owner": "owner@example.com",
+      "parentId": "1_project_folder_000000000000000A",
+      "title": "20_sources",
+      "viewUrl": "https://drive.google.com/drive/folders/1_sources_folder_000000000000000C"
+    },
+    {
+      "canAddChildren": true,
+      "createdTime": "2026-09-13T17:03:23.418Z",
+      "id": "1_context_folder_000000000000000B",
+      "mimeType": "application/vnd.google-apps.folder",
+      "modifiedTime": "2026-09-13T17:03:23.418Z",
+      "owner": "owner@example.com",
+      "parentId": "1_project_folder_000000000000000A",
+      "title": "10_context",
+      "viewUrl": "https://drive.google.com/drive/folders/1_context_folder_000000000000000B"
+    }
+  ]
+}

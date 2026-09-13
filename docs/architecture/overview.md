@@ -9,7 +9,7 @@
 3. **Working knowledge** — `10_context/` contains compact, task-ready representations.
 4. **Evidence** — `20_sources/` preserves originals for exact figures and detail.
 5. **Institutional memory** — `90_LOG.md` keeps append-only decisions and lessons.
-6. **Deterministic gates** — local scripts validate structure, identity, references, links and sync state.
+6. **Deterministic gates** — local scripts validate structure, identity, references, links and sync state, and validate a Docs project's index against the Drive listing saved from the connector.
 
 ## Trust boundary
 
