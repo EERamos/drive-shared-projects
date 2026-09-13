@@ -24,7 +24,14 @@ extend-exclude = ["examples"]
 select = ["E", "F", "I", "UP", "B", "ANN"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["common", "init_project", "build_index", "check_index", "check_sync"]
+known-first-party = [
+    "common",
+    "init_project",
+    "build_index",
+    "check_index",
+    "check_sync",
+    "check_drive",
+]
 
 [tool.mypy]
 python_version = "3.10"

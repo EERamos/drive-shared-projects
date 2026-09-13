@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import csv
+import io
+import json
 import re
 import sys
+from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum, IntEnum
@@ -18,12 +22,20 @@ SOURCES_DIR = "20_sources"
 ID_PLACEHOLDER = "TODO-ID"
 DRIVE_IDS_HEADING = "## Drive IDs"
 DEFAULT_MAX_CHARS = 50_000
+FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 
 REQUIRED_FILES = (INSTRUCTIONS_FILE, INDEX_FILE, LOG_FILE)
 SCANNED_DIRS = (CONTEXT_DIR, SOURCES_DIR)
 TEXT_SUFFIXES = frozenset({".md", ".txt"})
 FRONTMATTER_REQUIRED = ("title", "source", "drive_id", "updated", "owner")
+CANONICAL_LABELS = (
+    "Project folder",
+    "10_context folder",
+    "20_sources folder",
+    "01_INDEX",
+    "90_LOG",
+)
 
 INDEX_HEADER = "| File | Drive ID | What it contains | When to read | Owner |"
 INDEX_SEPARATOR = "| --- | --- | --- | --- | --- |"
@@ -33,9 +45,16 @@ _CELL_SPLIT = re.compile(r"(?<!\\)\|")
 _HEADING = re.compile(r"^#{1,6}[ \t]+(.+?)\s*$", re.MULTILINE)
 _PLACEHOLDER = re.compile(r"\{\{([A-Z_]+)\}\}")
 _LAST_UPDATED = re.compile(r"(Last updated:\s*)\d{4}-\d{2}-\d{2}")
-_SOURCE_LINE = re.compile(r"^Source:\s+(.+?)(?:\s+\(Drive ID:\s*([^\)]+)\))?\s*$", re.MULTILINE)
+# A Google Doc joins consecutive lines, so `Extracted: ...` may trail the `Source:` line.
+_SOURCE_LINE = re.compile(
+    r"^Source:\s+(.+?)(?:\s+\(Drive ID:\s*([^\)]+)\))?(?:\s+Extracted:.*)?\s*$",
+    re.MULTILINE,
+)
 _WIKILINK = re.compile(r"\[\[([^\]]+)\]\]")
 _DRIVE_ID_LINE = re.compile(r"^-\s+([^:]+):\s*(\S+)\s*$", re.MULTILINE)
+_ESCAPED_PUNCTUATION = re.compile(r"\\+([!-/:-@\[-`{-~])")
+_LIST_INDENT = re.compile(r"^[ \t]+(?=(?:[-*+]|\d+[.)])[ \t])")
+_END_LIST_MARKER = "<!-- end list -->"
 
 
 class ExitCode(IntEnum):
@@ -330,3 +349,212 @@ def read_text(path: Path) -> str:
 def write_text(path: Path, text: str) -> None:
     """Write `text` to `path` as UTF-8 with LF line endings on every platform."""
     path.write_text(text, encoding="utf-8", newline="\n")
+
+
+def first_rows_by_file(rows: Iterable[IndexRow]) -> dict[str, IndexRow]:
+    """The first index row of every path, in index order."""
+    by_file: dict[str, IndexRow] = {}
+    for row in rows:
+        by_file.setdefault(row.file, row)
+    return by_file
+
+
+def duplicate_row_counts(rows: Iterable[IndexRow]) -> list[tuple[str, int]]:
+    """`(path, count)` for every path the index lists more than once, sorted by path."""
+    counts = Counter(row.file for row in rows)
+    return [(path, count) for path, count in sorted(counts.items()) if count > 1]
+
+
+def duplicate_drive_id_paths(rows: Iterable[IndexRow]) -> list[tuple[str, list[str]]]:
+    """`(drive_id, paths)` for every populated Drive ID shared by several paths."""
+    paths: dict[str, list[str]] = {}
+    for row in rows:
+        if is_real_drive_id(row.drive_id):
+            paths.setdefault(row.drive_id, []).append(row.file)
+    shared: list[tuple[str, list[str]]] = []
+    for drive_id, listed in sorted(paths.items()):
+        unique = list(dict.fromkeys(listed))
+        if len(unique) > 1:
+            shared.append((drive_id, unique))
+    return shared
+
+
+def missing_canonical_ids(instructions_text: str) -> list[str] | None:
+    """Canonical labels whose ID is empty or TODO-ID, or None when the section is missing."""
+    if DRIVE_IDS_HEADING not in instructions_text:
+        return None
+    ids = instruction_drive_ids(instructions_text)
+    return [label for label in CANONICAL_LABELS if not is_real_drive_id(ids.get(label, ""))]
+
+
+def canonical_id_collisions(
+    instructions_text: str, rows: Iterable[IndexRow]
+) -> list[tuple[str, list[str]]]:
+    """`(drive_id, locations)` for IDs shared between a canonical label and anything else."""
+    locations: dict[str, list[str]] = {}
+    for row in rows:
+        if is_real_drive_id(row.drive_id):
+            locations.setdefault(row.drive_id, []).append(row.file)
+    ids = instruction_drive_ids(instructions_text)
+    for label in CANONICAL_LABELS:
+        value = ids.get(label, "")
+        if is_real_drive_id(value):
+            locations.setdefault(value, []).append(f"{INSTRUCTIONS_FILE}:{label}")
+    collisions: list[tuple[str, list[str]]] = []
+    for drive_id, listed in sorted(locations.items()):
+        unique = list(dict.fromkeys(listed))
+        canonical = any(location.startswith(INSTRUCTIONS_FILE + ":") for location in unique)
+        if len(unique) > 1 and canonical:
+            collisions.append((drive_id, unique))
+    return collisions
+
+
+def normalize_connector_markdown(text: str) -> str:
+    """Rewrite Markdown as the Drive connector returns it into the form the parsers expect.
+
+    A Google Doc comes back with escaped punctuation (`10\\_context`, triple-escaped inside
+    table cells), two-space indented bullets, `<!-- end list -->` markers and the index table
+    rendered with an empty header row above a bold header. A plain .md file comes back with
+    escaped Markdown marks and two trailing spaces per line. Local files never need this.
+    """
+    lines: list[str] = []
+    for raw_line in text.split("\n"):
+        line = raw_line.rstrip()
+        if line == _END_LIST_MARKER:
+            continue
+        line = _unescape_connector_punctuation(line)
+        lines.append(_LIST_INDENT.sub("", line))
+
+    rebuilt: list[str] = []
+    position = 0
+    while position < len(lines):
+        if not _is_table_line(lines[position]):
+            rebuilt.append(lines[position])
+            position += 1
+            continue
+        start = position
+        while position < len(lines) and _is_table_line(lines[position]):
+            position += 1
+        rebuilt.extend(_rebuild_table_block(lines[start:position]))
+
+    collapsed: list[str] = []
+    for line in rebuilt:
+        if line == "" and collapsed and collapsed[-1] == "":
+            continue
+        collapsed.append(line)
+    while collapsed and collapsed[0] == "":
+        collapsed.pop(0)
+    while collapsed and collapsed[-1] == "":
+        collapsed.pop()
+    return "\n".join(collapsed) + "\n" if collapsed else ""
+
+
+def _unescape_connector_punctuation(line: str) -> str:
+    """Collapse backslash runs before punctuation, keeping `\\|` so table cells still split."""
+
+    def _sub(match: re.Match[str]) -> str:
+        char = match.group(1)
+        return "\\|" if char == "|" else char
+
+    return _ESCAPED_PUNCTUATION.sub(_sub, line)
+
+
+def _strip_bold(cell: str) -> str:
+    if len(cell) > 4 and cell.startswith("**") and cell.endswith("**"):
+        return cell[2:-2].strip()
+    return cell
+
+
+def _rebuild_table_block(lines: Sequence[str]) -> list[str]:
+    """Drop empty rows and, when the block holds the index header, re-render it canonically."""
+    parsed = [(line, _row_cells(line)) for line in lines]
+    kept = [(line, cells) for line, cells in parsed if cells is None or any(cells)]
+    header_cells = _row_cells(INDEX_HEADER)
+    has_header = any(
+        cells is not None and [_strip_bold(cell) for cell in cells] == header_cells
+        for _, cells in kept
+    )
+    if not has_header:
+        return [line for line, _ in kept]
+    rebuilt = [INDEX_HEADER, INDEX_SEPARATOR]
+    for line, cells in kept:
+        if cells is None:
+            rebuilt.append(line)
+            continue
+        is_header = [_strip_bold(cell) for cell in cells] == header_cells
+        if is_header or all(_is_separator(cell) for cell in cells):
+            continue
+        rebuilt.append("| " + " | ".join(_escape_cell(cell) for cell in cells) + " |")
+    return rebuilt
+
+
+def connector_markdown(raw: str) -> str:
+    """Markdown from a saved `read_file_content` result or from a Markdown file, normalized."""
+    text = raw
+    if raw.lstrip().startswith("{"):
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            payload = None
+        if payload is not None:
+            content = payload.get("fileContent") if isinstance(payload, dict) else None
+            if not isinstance(content, str):
+                raise ValueError("JSON document has no fileContent string")
+            text = content
+    return normalize_connector_markdown(text)
+
+
+@dataclass(frozen=True)
+class DriveEntry:
+    """One entry of a Drive folder listing, or one row of a `path,drive_id` CSV."""
+
+    drive_id: str
+    title: str
+    mime_type: str
+    parent_id: str | None
+    path: str | None
+
+    @property
+    def is_folder(self) -> bool:
+        return self.mime_type == FOLDER_MIME_TYPE
+
+
+def parse_drive_csv(text: str) -> dict[str, str]:
+    """Read `path,drive_id` rows from CSV text; paths use `/` and blank paths are skipped."""
+    reader = csv.DictReader(io.StringIO(text, newline=""))
+    if reader.fieldnames is None or not {"path", "drive_id"}.issubset(reader.fieldnames):
+        raise ValueError("CSV must contain path and drive_id columns")
+    rows: dict[str, str] = {}
+    for row in reader:
+        rel = (row.get("path") or "").strip().replace("\\", "/")
+        drive_id = (row.get("drive_id") or "").strip()
+        if rel:
+            rows[rel] = drive_id
+    return rows
+
+
+def parse_listing(raw: str) -> list[DriveEntry]:
+    """Entries from a saved `search_files` result (JSON) or from a `path,drive_id` CSV."""
+    stripped = raw.lstrip()
+    if stripped.startswith(("{", "[")):
+        payload = json.loads(stripped)
+        items = payload.get("files") if isinstance(payload, dict) else payload
+        if not isinstance(items, list):
+            raise ValueError("listing JSON must be a search_files result with a files array")
+        return [_entry_from_json(item) for item in items]
+    return [
+        DriveEntry(drive_id, Path(path).name, "", None, path)
+        for path, drive_id in parse_drive_csv(raw).items()
+    ]
+
+
+def _entry_from_json(item: object) -> DriveEntry:
+    if not isinstance(item, dict):
+        raise ValueError("every listing entry must be a JSON object")
+    drive_id = str(item.get("id") or "").strip()
+    title = str(item.get("title") or item.get("name") or "").strip()
+    if not drive_id or not title:
+        raise ValueError("every listing entry needs an id and a title")
+    parent = item.get("parentId")
+    parent_id = str(parent) if parent else None
+    return DriveEntry(drive_id, title, str(item.get("mimeType") or ""), parent_id, None)
