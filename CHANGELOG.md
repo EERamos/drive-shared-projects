@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows Keep
 
 ## [Unreleased]
 
+### Added
+
+- `check_drive.py`: validates `01_INDEX` against Drive listings saved from the connector (`read_file_content` and `search_files` results; Markdown and `path,drive_id` CSV accepted too). Reports missing/stale rows, renames by stable ID, ID mismatches, duplicate titles, nested folders and, with a project listing, the fixed layout and the canonical IDs.
+- `common.connector_markdown` and `normalize_connector_markdown`: turn Markdown as the connector returns it (escaped punctuation, indented bullets, bold index header above an empty row, `<!-- end list -->`) into what the parsers expect.
+- Connector samples captured on 2026-09-13 under `tests/fixtures/connector/`, anonymised, with the behaviour recorded in `references/drive-connector-behavior.md`.
+- SKILL.md: Docs-format maintenance procedure for Claude Code and the manual equivalent for claude.ai; what "paste" means for an index row and a log entry in Docs.
+
+### Changed
+
+- `source_reference` tolerates the `Extracted:` tail that Google Docs joins onto the `Source:` line; the extract templates and the example separate the two lines with a blank line.
+- `check_index.py` and `check_sync.py` share the canonical-ID, duplicate-row and CSV helpers with the new script; their findings are unchanged.
+- Templates document the Docs File cell convention (`10_context/<Drive title>`) and the title-uniqueness rule.
+
 ## [0.2.0] - 2026-09-12
 
 ### Added

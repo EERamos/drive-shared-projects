@@ -25,9 +25,10 @@ The verified Drive connector can create folders/files and read them, but cannot 
 
 Therefore:
 
-- **Docs format:** propose the exact edit, the user pastes it, then re-read by ID to verify.
+- **Docs format:** propose the exact edit, the user applies it in the browser, then re-read by ID to verify. An index row is a table row: the owner inserts a row and fills the five cells. A log entry is pasted as text with its title line styled Heading 3, which reads back as `###`. Docs joins consecutive lines into one paragraph, so `Source:` and `Extracted:` stay separate paragraphs.
 - **md format in Claude Code/local mirror:** edit the local authoritative file and let the sync mechanism publish it to Drive; re-read by ID when the connector is available.
 - Never simulate an update by re-uploading an existing file: that creates a new ID and breaks identity references.
+- What the connector returns is not the Markdown that was uploaded: punctuation comes back escaped, bullets indented, the index header bold above an empty row. Never feed raw connector output to `check_index.py` or `build_index.py`; `check_drive.py` normalizes it.
 
 ## Global rules
 
@@ -39,6 +40,7 @@ Therefore:
 - Use flat lists and plain table cells in Drive-authored project docs.
 - Fixed names/index headers/`Source:`/`TODO-ID` remain in English because scripts key on them. Project prose uses the user's language.
 - Every clean project has one populated unique Drive ID per index row.
+- In Docs format the File cell is `10_context/<Drive title>` or `20_sources/<file name>`; a Google Doc has no extension. Titles must be unique inside each folder because the index addresses files by path.
 - A `Source:` relationship must resolve to a real file under `20_sources`; if it declares a Drive ID, it must match the source's index row.
 - `build_index.py --write` must not remove stale rows unless the user reviewed them and `--allow-drop` is supplied.
 
@@ -88,7 +90,7 @@ Trigger: the user wants a new shared project.
 4. Create the extract in `10_context`.
 5. Fill its actual Drive identity where the format allows it. In a vault/local mirror, frontmatter `drive_id` is the stable identity used across renames. If the sync has not assigned an ID yet, leave `TODO-ID` and treat maintenance as failing until it is populated.
 6. Update `01_INDEX` through the correct write path. Refresh `Last updated`.
-7. Re-read/validate. `Source:` must resolve to the actual source and the source Drive ID must match the index.
+7. Re-read/validate. `Source:` must resolve to the actual source and the source Drive ID must match the index. In Claude Code, run the Docs check of Workflow 5 so the pasted row is verified against the real IDs.
 
 ## Workflow 4: Record a decision
 
@@ -110,7 +112,28 @@ Always re-read/validate after the write. Never alter older entries.
 
 ## Workflow 5: Maintenance
 
-Outside Claude Code, list `10_context` and `20_sources` by their recorded folder IDs and compare with the index. In local/Claude Code mode run:
+### Docs format: the project lives in Drive
+
+In Claude Code:
+
+1. Read `00_INSTRUCTIONS` and `01_INDEX` by ID and save each tool result verbatim as `00_INSTRUCTIONS.json` and `01_INDEX.json` in a scratch folder.
+2. Search `parentId = '<10_context folder ID>'` and `parentId = '<20_sources folder ID>'` with content snippets excluded; save each result verbatim as `10_context.json` and `20_sources.json`. To check the fixed layout too, search the project folder ID and save it as `project.json`.
+3. Run:
+
+   ```bash
+   python <skill>/scripts/check_drive.py --instructions 00_INSTRUCTIONS.json --index 01_INDEX.json \
+     --listing 10_context.json --listing 20_sources.json --listing project.json
+   ```
+
+4. Propose the index edits the findings call for, the owner applies them, run the check again.
+
+It reports `MISSING_ROW`, `STALE_ROW`, `RENAMED_FILE` (same Drive ID, new title), `ID_MISMATCH`, `DUPLICATE_TITLE`, `NESTED_FOLDER`, `MISSING_DRIVE_ID`, `DUPLICATE_DRIVE_ID`, `DUPLICATE_ROW`, the canonical-ID findings of `00_INSTRUCTIONS` and, with a project listing, `MISSING_CANONICAL_FILE` and `UNEXPECTED_FILE`. Exit `0` means clean, `1` findings, `2` usage error (malformed input, or a listing whose parent folder is not in the Drive IDs section). Markdown documents and `path,drive_id` CSV listings are accepted too.
+
+Outside Claude Code (claude.ai, Cowork) do the same comparison by hand: list both folders by their recorded IDs, then for every listed file look for its `folder/title` row and compare the ID, and for every row look for its file. Report with the same finding names and propose the edits.
+
+### md format: the project lives in a local tree
+
+In local/Claude Code mode run:
 
 ```bash
 python <skill>/scripts/check_index.py --root <project>
