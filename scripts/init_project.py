@@ -3,7 +3,7 @@
 Usage:
     python scripts/init_project.py --name "My Project" --mode duo --format docs --out ./my-project
     python scripts/init_project.py --name "My Vault Project" --mode solo --format md \
-        --vault --out ./project
+        --vault --out ./project --writer "ChatGPT"
 
 Nothing is written unless the target is missing or an empty directory.
 Exit codes: 0 created, 1 refused, 2 usage error.
@@ -63,6 +63,21 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Mark an md-format project as living inside an Obsidian vault.",
     )
+    parser.add_argument(
+        "--drafter",
+        default="Claude",
+        help="Assistant that drafts change orders; written into 00_INSTRUCTIONS.",
+    )
+    parser.add_argument(
+        "--writer",
+        default="a person, by paste",
+        help="Who applies change orders: a person, or an assistant with a verified write path.",
+    )
+    parser.add_argument(
+        "--verifier",
+        default="none",
+        help="Additional assistant that verifies applied changes, or none.",
+    )
     return parser
 
 
@@ -76,6 +91,9 @@ def create_project(
     role: str = "AI project assistant",
     tone: str = "direct; use the user's language",
     vault: bool = False,
+    drafter: str = "Claude",
+    writer: str = "a person, by paste",
+    verifier: str = "none",
     templates: Path = TEMPLATES_DIR,
 ) -> None:
     """Write the folder tree into `out` without overwriting existing content."""
@@ -94,6 +112,9 @@ def create_project(
         "ROLE": role,
         "LANGUAGE_TONE": tone,
         "VAULT": "yes" if vault else "no",
+        "DRAFTER": drafter,
+        "WRITER": writer,
+        "VERIFIER": verifier,
     }
     fragment = read_text(templates / "modes" / f"{mode.value}.md").rstrip("\n")
     values = {**base_values, "MODE_RULES": fill_template(fragment, base_values)}
@@ -122,6 +143,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             role=args.role,
             tone=args.tone,
             vault=args.vault,
+            drafter=args.drafter,
+            writer=args.writer,
+            verifier=args.verifier,
         )
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)

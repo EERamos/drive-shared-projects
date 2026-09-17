@@ -106,3 +106,58 @@ def test_main_returns_the_literal_codes(tmp_path: Path) -> None:
     assert ok == 0
     bad = main(["--name", "Demo", "--mode", "trio", "--format", "md", "--out", str(tmp_path / "b")])
     assert bad == 2
+
+
+def test_create_project_fills_default_roles(tmp_path: Path) -> None:
+    out = tmp_path / "proj"
+    create_project(out, "Demo", Mode.SOLO, Format.DOCS, "Ana", TODAY)
+    text = (out / INSTRUCTIONS_FILE).read_text(encoding="utf-8")
+    assert "## Assistants and roles" in text
+    assert "## Change orders" in text
+    assert "- Drafter: Claude." in text
+    assert "- Writer: a person, by paste." in text
+    assert "- Additional verifier: none." in text
+    for name in (INSTRUCTIONS_FILE, INDEX_FILE, LOG_FILE):
+        assert "{{" not in (out / name).read_text(encoding="utf-8")
+
+
+def test_create_project_fills_custom_roles(tmp_path: Path) -> None:
+    out = tmp_path / "proj"
+    create_project(
+        out,
+        "Demo",
+        Mode.GROUP,
+        Format.DOCS,
+        "Ana",
+        TODAY,
+        drafter="Claude",
+        writer="ChatGPT",
+        verifier="Gemini",
+    )
+    text = (out / INSTRUCTIONS_FILE).read_text(encoding="utf-8")
+    assert "- Drafter: Claude." in text
+    assert "- Writer: ChatGPT." in text
+    assert "- Additional verifier: Gemini." in text
+
+
+def test_main_accepts_role_options(tmp_path: Path) -> None:
+    out = tmp_path / "p"
+    code = main(
+        [
+            "--name",
+            "Demo",
+            "--mode",
+            "duo",
+            "--format",
+            "docs",
+            "--out",
+            str(out),
+            "--writer",
+            "ChatGPT",
+        ]
+    )
+    assert code == EXIT_OK
+    text = (out / INSTRUCTIONS_FILE).read_text(encoding="utf-8")
+    assert "- Drafter: Claude." in text
+    assert "- Writer: ChatGPT." in text
+    assert "- Additional verifier: none." in text
