@@ -26,7 +26,8 @@ The verified Claude Drive connector can create folders/files and read them, but 
 - **A person writes:** in Docs format the drafter proposes the exact text and a person pastes it with Paste from Markdown; in md format a person edits the local authoritative file and the sync mechanism publishes it. Someone re-reads by ID afterwards. An index row is a table row: the owner inserts a row and fills the five cells. A log entry is pasted as text with its title line styled Heading 3, which reads back as `###`. Docs joins consecutive lines into one paragraph, so `Source:` and `Extracted:` stay separate paragraphs.
 - **A verified writer assistant writes:** it applies a change order (Workflow 7) inside the existing document, keeping its Drive ID, and re-reads it. A writer role exists only after the verification test in `references/assistant-roles.md` passes.
 - **Re-creating is never a write path.** Never simulate an update by re-uploading or re-creating an existing file: that creates a new ID and breaks identity references.
-- What the connector returns is not the Markdown that was uploaded: punctuation comes back escaped, bullets indented, the index header bold above an empty row. Never feed raw connector output to `check_index.py` or `build_index.py`; `check_drive.py` normalizes it.
+
+What the connector returns is not the Markdown that was uploaded: punctuation comes back escaped, bullets indented, the index header bold above an empty row. Never feed raw connector output to `check_index.py` or `build_index.py`; `check_drive.py` normalizes it.
 
 Creating a document that does not exist yet is not constrained: the drafter creates new documents directly, and indexing them travels as a change order. A bulk ingest travels as an ingest order (Workflow 8) and touches nothing canonical before verification.
 
@@ -96,7 +97,7 @@ Trigger: the user wants a new shared project.
 4. Create the extract in `10_context`.
 5. Fill its actual Drive identity where the format allows it. In a vault/local mirror, frontmatter `drive_id` is the stable identity used across renames. If the sync has not assigned an ID yet, leave `TODO-ID` and treat maintenance as failing until it is populated.
 6. Update `01_INDEX` through a change order (Workflow 7). Refresh `Last updated`.
-7. Re-read/validate. `Source:` must resolve to the actual source and the source Drive ID must match the index. In Claude Code, run the Docs check of Workflow 5 so the pasted row is verified against the real IDs.
+7. Re-read/validate. `Source:` must resolve to the actual source and the source Drive ID must match the index. In Docs format, in Claude Code, run the Docs check of Workflow 5 so the new row is verified against the real IDs.
 
 Bulk ingest: when there is more than one source, or a writer assistant runs the ingest, use an ingest order (Workflow 8) instead of steps 1 to 7.
 
@@ -139,7 +140,7 @@ In Claude Code:
 
 It reports `MISSING_ROW`, `STALE_ROW`, `RENAMED_FILE` (same Drive ID, new title), `ID_MISMATCH`, `DUPLICATE_TITLE`, `NESTED_FOLDER`, `MISSING_DRIVE_ID`, `DUPLICATE_DRIVE_ID`, `DUPLICATE_ROW`, the canonical-ID findings of `00_INSTRUCTIONS` and, with a project listing, `MISSING_CANONICAL_FILE`, `DUPLICATE_CANONICAL_FILE` (both `01_INDEX` and `01_INDEX.md` exist) and `UNEXPECTED_FILE`. Exit `0` means clean, `1` findings, `2` usage error (malformed input, a folder without a recorded ID, or entries listed under the wrong folder). Markdown documents and `path,drive_id` CSV listings, one per folder, are accepted too.
 
-`UNEXPECTED_FILE` on `_staging/` is expected only while an ingest order (Workflow 8) is open; at any other time the folder is a leftover to trash.
+`UNEXPECTED_FILE` on `_staging/` is expected only while an ingest order (Workflow 8) is open; at any other time the folder is a leftover to trash. The finding's suggested remedy ("move it into 20_sources or remove it") does not apply to `_staging/`: never move it into the canonical tree; trash it or let the open order commit it by moving the verified files.
 
 Outside Claude Code (claude.ai, Cowork) do the same comparison by hand: list both folders by their recorded IDs, then for every listed file look for its `folder/title` row and compare the ID, and for every row look for its file. Report with the same finding names and propose the edits.
 
@@ -198,7 +199,7 @@ Trigger: an Obsidian/local project is mirrored to Drive and the user wants to ve
 
 3. Resolve:
    - `LOCAL_ONLY`: publish/sync the local file;
-   - `DRIVE_ONLY`: decide whether it is an intentional remote addition before importing/deleting anything;
+   - `DRIVE_ONLY`: decide whether it is an intentional remote addition before importing/deleting anything. A `_staging/` entry while an ingest order is open is an intentional remote addition.
    - `ID_MISMATCH`: stop and reconcile identity before continuing.
 
 The vault is authoritative; Drive is the mirror. Avoid simultaneous two-way edits unless the chosen sync mechanism has a deliberate conflict strategy.

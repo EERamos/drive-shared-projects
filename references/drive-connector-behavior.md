@@ -21,7 +21,7 @@ What Claude can expect when it reads and writes a project folder through the Goo
 | Two consecutive lines in a Doc (2026-09-13) | Joined into one paragraph: `Source: ... (Drive ID: ...) Extracted: ...`. | Templates keep `Source:` and `Extracted:` as separate paragraphs; `source_reference` tolerates the joined form. |
 | Code spans, code fences, blockquotes in a Doc (2026-09-13) | Formatting dropped, text kept. A literal pipe in a cell comes back as `a \| b`. | Project documents do not rely on them. |
 | Folder listing result (2026-09-13) | `{"files": [{"id", "title", "mimeType", "parentId", ...}]}`; Docs carry no `fileExtension`, uploaded files do. | Saved verbatim, it is the listing input of `check_drive.py`. |
-| Markdown to Doc conversion | Consecutive lines separated by a single newline are joined into one paragraph (the row above is the measured case). | Put a blank line between standalone lines (header block, Source: lines). Bullets are unaffected. |
+| Markdown to Doc conversion | Consecutive lines separated by a single newline are joined into one paragraph (the row "Two consecutive lines in a Doc (2026-09-13)" above is the measured case). | Put a blank line between standalone lines (header block, Source: lines). Bullets are unaffected. |
 
 The 50,000-character limit is a margin, not a measurement. What was measured is a 30 KB document that arrived complete and a 54 KB one that did not. The exact cutoff between them was never found, so the rule sits below the failure with room to spare.
 
