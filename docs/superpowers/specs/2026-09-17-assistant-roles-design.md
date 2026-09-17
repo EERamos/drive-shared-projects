@@ -153,7 +153,7 @@ Verifies: the writer immediately after writing; then the drafter by re-reading b
 ```
 # Ingest order {{ORDER_NUMBER}} - {{SHORT_TITLE}}
 
-Date: {{DATE}}. Drafted by: {{WRITER_OR_DRAFTER}}. Approved by: {{OWNER}}. Executed by: {{WRITER}}. Verified and committed by: {{DRAFTER}}.
+Date: {{DATE}}. Drafted by: {{WRITER_OR_DRAFTER}}. Approved by: {{OWNER}}. Executed by: {{EXECUTOR}} (the writer assistant if the project has one, otherwise the drafter). Verified and committed by: {{DRAFTER}}.
 
 ## 1. Sources to copy
 
@@ -223,7 +223,7 @@ Conflicts: two writers on the same document have no merge; the last write wins; 
 ### 7.2 `references/drive-connector-behavior.md`
 
 - Read-side table, new row: a Google Doc created from Markdown joins consecutive single-newline lines into one paragraph. Consequence: put a blank line between standalone lines (header block, `Source:` lines); bullets are unaffected.
-- Checklist table: "Edit Doc in the browser keeps ID" becomes Pass (2026-09-16/17, a real project: `01_INDEX` kept its ID after a human paste and after an assistant's in-place edits). "User pastes a log entry, Claude re-reads it" becomes Pass with a note (entries appended as plain text landed after the Lessons section; the read-back caught it; that is the origin of the read-back rule). "Share as Commenter" stays pending.
+- Checklist table: "Edit Doc in the browser keeps ID" becomes Pass (2026-09-16/17, a real project: `01_INDEX` kept its ID after a human paste and after in-place edits by a different assistant through its own Drive connector). "User pastes a log entry, Claude re-reads it" becomes Pass with a note (entries appended as plain text landed after the Lessons section; the read-back caught it; that is the origin of the read-back rule). "Share as Commenter" stays pending.
 
 ### 7.3 `references/modes.md`
 
