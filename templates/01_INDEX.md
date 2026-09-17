@@ -4,7 +4,7 @@ Index owner: {{OWNER}}. Last updated: {{DATE}}.
 
 How to use this table: one row per file in 10_context and 20_sources. One line per column.
 
-- File: the path relative to the project folder, with forward slashes.
+- File: the path relative to the project folder, with forward slashes. In docs format it is 10_context/<Drive title> or 20_sources/<file name>; a Google Doc has no extension.
 - Drive ID: the id in the file's Drive URL. Keep TODO-ID until it is known.
 - What it contains: one line, no more.
 - When to read: when Claude should open the file, for example "always", "when discussing pricing", "detail only".

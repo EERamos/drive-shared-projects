@@ -14,6 +14,11 @@ All notable changes to this project are documented here. The format follows Keep
 - Per-role instruction blocks in `templates/roles/`.
 - `references/assistant-roles.md` with the writer verification test and the status table per assistant.
 - `tests/test_templates.py` and `tests/test_docs.py`.
+- `check_drive.py`: validates `01_INDEX` against Drive listings saved from the connector (`read_file_content` and `search_files` results; Markdown and `path,drive_id` CSV accepted too). One listing per folder: `--context-listing` and `--sources-listing` are mandatory and bound to their folder, `--project-listing` is optional. Reports missing/stale rows, renames by stable ID, ID mismatches, duplicate titles, nested folders and, with a project listing, the fixed layout, both variants of a canonical file and the canonical IDs.
+- `parse_drive_csv_rows` keeps duplicate CSV paths, so `DUPLICATE_TITLE` also applies to CSV listings; `check_sync` keeps the last ID per path as before.
+- `common.connector_markdown` and `normalize_connector_markdown`: turn Markdown as the connector returns it (escaped punctuation, indented bullets, bold index header above an empty row, `<!-- end list -->`) into what the parsers expect.
+- Connector samples captured on 2026-09-13 under `tests/fixtures/connector/`, anonymised, with the behaviour recorded in `references/drive-connector-behavior.md`.
+- SKILL.md: Docs-format maintenance procedure for Claude Code and the manual equivalent for claude.ai; what "paste" means for an index row and a log entry in Docs.
 
 ### Changed
 
@@ -25,6 +30,10 @@ All notable changes to this project are documented here. The format follows Keep
 - Sample project carries the new sections.
 - `create_project()` takes its options after `today` as keyword-only arguments.
 - Ingest orders: when a project has no writer assistant, the drafter creates the staged files and the owner checks them against the manifest before the commit.
+- `source_reference` tolerates the `Extracted:` tail that Google Docs joins onto the `Source:` line; the extract templates and the example separate the two lines with a blank line.
+- `check_index.py` and `check_sync.py` share the canonical-ID, duplicate-row and CSV helpers with the new script; their findings are unchanged.
+- Templates document the Docs File cell convention (`10_context/<Drive title>`) and the title-uniqueness rule.
+- `_staging/` at the project root is reported by `check_drive.py` as `UNEXPECTED_FILE`: expected while an ingest order is open, a defect otherwise.
 
 ## [0.2.0] - 2026-09-12
 

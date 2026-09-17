@@ -19,7 +19,6 @@ is not UTF-8 text and a Drive CSV that cannot be read.
 from __future__ import annotations
 
 import argparse
-import csv
 import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -35,6 +34,7 @@ from common import (
     is_real_drive_id,
     missing_project_paths,
     parse_args_or_exit,
+    parse_drive_csv,
     parse_index,
     project_files,
     read_index_or_error,
@@ -64,18 +64,8 @@ class SyncFinding:
 
 
 def read_drive_csv(path: Path) -> dict[str, str]:
-    """Read `path,drive_id` rows from a UTF-8 CSV."""
-    with path.open("r", encoding="utf-8", newline="") as handle:
-        reader = csv.DictReader(handle)
-        if reader.fieldnames is None or not {"path", "drive_id"}.issubset(reader.fieldnames):
-            raise ValueError("CSV must contain path and drive_id columns")
-        rows: dict[str, str] = {}
-        for row in reader:
-            rel = (row.get("path") or "").strip().replace("\\", "/")
-            drive_id = (row.get("drive_id") or "").strip()
-            if rel:
-                rows[rel] = drive_id
-        return rows
+    """Read `path,drive_id` rows from a UTF-8 CSV file."""
+    return parse_drive_csv(path.read_text(encoding="utf-8"))
 
 
 def local_drive_ids(index_text: str, instructions_text: str) -> dict[str, str]:

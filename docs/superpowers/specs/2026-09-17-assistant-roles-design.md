@@ -26,7 +26,7 @@ A v0.2.0 project keeps validating unchanged. The defaults of every new option re
 - Creating a new document never needs a change order; indexing it does. The drafter creates analysis and synthesis documents directly and hands over a change order for the index row and the log entry.
 - A bulk ingest (more than one source, or any ingest run by a writer assistant) travels as an ingest order: manifest first, execution into a transient `_staging/` folder at the project root, verification on the staged files, commit by moving them into place, then one write to `01_INDEX` and one to `90_LOG`. Moving keeps the Drive ID and is an operation the Claude connector can perform, so the drafter commits and the writer never touches the canonical tree before verification. If verification fails, `_staging/` is trashed and the manifest is corrected; nothing canonical is rewritten.
 - When the project has no writer assistant, the drafter creates the staged files of an ingest order itself, since creating is not the constrained operation, and the owner checks them against the manifest before the commit. Recorded after the final review of the branch.
-- The scripts scan only `10_context` and `20_sources`, so `_staging/` is invisible to them; a clean project has no `_staging/` folder. No script change.
+- `check_index.py` and `build_index.py` scan only `10_context` and `20_sources` and never see `_staging/`; `check_drive.py` (main, PR #3) with a project listing reports it as `UNEXPECTED_FILE`, which is the expected finding while an ingest order is open and a defect otherwise. A clean project has no `_staging/` folder. No script change.
 - One open ingest order at a time, like one open change order per document.
 - No client data enters the repository. Evidence from the pilot is recorded generically ("a real project", date, what was observed), never with names, figures or Drive IDs of the client.
 
@@ -35,7 +35,7 @@ A v0.2.0 project keeps validating unchanged. The defaults of every new option re
 - A change-order mailbox inside the project folder (a `30_orders/` directory) and any change to the fixed layout.
 - A script that validates change orders.
 - Changes to `check_index.py`, `build_index.py`, `check_sync.py` or `common.py`. The new sections of `00_INSTRUCTIONS` are prose that no script parses, and `_staging/` lives outside the scanned directories.
-- A script that scans or validates `_staging/`. Whether it is empty is checked by listing.
+- A script change for `_staging/`: `check_drive.py` already reports it, and that is the desired behaviour; in md format its absence is checked by listing.
 - Changes to the human modes or their sharing rules.
 - Changes to the md/vault write path beyond wording: in md format the writer is still whoever edits the local mirror.
 - Granting Gemini or any other assistant the writer role. They start as verifier or drafter until they pass the test.

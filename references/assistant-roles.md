@@ -42,7 +42,7 @@ A bulk ingest is the most expensive thing to undo, so it runs so that nothing ca
 4. Commit: the drafter moves the verified files into 20_sources and 10_context, which keeps each Drive ID; then the writer applies the index rows in one write and the log entry in one write, or a person pastes them; each is read back before the next.
 5. Failure: _staging/ is trashed, the manifest is corrected and the order runs again. The canonical tree was never touched.
 
-A clean project has no _staging/ folder. The scripts scan only 10_context and 20_sources, so a leftover _staging/ is found by listing the project folder, not by check_index.
+A clean project has no _staging/ folder. check_index.py scans only 10_context and 20_sources and never sees it; in Docs format, check_drive.py with a project listing reports it as UNEXPECTED_FILE, the expected finding while an ingest order is open and a defect once the order is closed.
 
 Template: templates/ingest-order.md.
 
