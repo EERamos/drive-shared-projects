@@ -1,4 +1,4 @@
-Superseded by the role blocks in templates/roles/ (drafter.md, writer.md, verifier.md). This file is kept so existing links keep working; its block is identical to templates/roles/drafter.md. Replace the three IDs and the folder path with the real ones.
+Paste the block below into the instructions of the assistant that drafts for this project: project instructions in claude.ai, a Gem in Gemini, custom instructions elsewhere. Replace the three IDs and the folder path with the real ones.
 
 ---
 
