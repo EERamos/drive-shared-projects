@@ -88,6 +88,7 @@ def create_project(
     fmt: Format,
     owner: str,
     today: dt.date,
+    *,
     role: str = "AI project assistant",
     tone: str = "direct; use the user's language",
     vault: bool = False,

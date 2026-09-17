@@ -17,7 +17,7 @@ This is not an agent framework. It provides the context, identity, evidence and 
 - `20_sources/`: originals as received.
 - `90_LOG`: append-only decisions and lessons.
 
-Read `references/drive-connector-behavior.md` before the first connector write. Governance is in `references/modes.md`. Vault setup is in `references/vault-setup.md`.
+Read `references/drive-connector-behavior.md` before the first connector write. Governance is in `references/modes.md`. Vault setup is in `references/vault-setup.md`. Roles, change orders, ingest orders and the writer verification test are in `references/assistant-roles.md`.
 
 ## Write paths
 
@@ -136,6 +136,8 @@ The validator checks:
 
 Exit `0` means clean, `1` means findings, `2` means usage/setup error.
 
+No script sees `_staging/`: as part of maintenance, list the project root and confirm the folder is absent, or that an open ingest order accounts for it.
+
 To rebuild the index, always preview first:
 
 ```bash
@@ -192,12 +194,12 @@ Rules: one open order per document, because there is no conflict detection and t
 Trigger: an ingest with more than one source, or any ingest run by a writer assistant. A single source with a human paste stays in Workflow 3.
 
 1. Manifest, with no writes, from `templates/ingest-order.md`: sources to copy with origin, Drive ID and target subfolder; exclusions with the reason (personal data of a natural person is excluded unless the owner says otherwise); extracts to create with topic, file name, sources and who synthesises; the exact index rows and the exact log entry. The owner approves it.
-2. Execution into `_staging/`, a transient folder at the project root, never into `10_context` or `20_sources`. Before copying, list the target and skip anything already present with the same name; the same manifest run twice creates nothing.
+2. Execution into `_staging/`, a transient folder at the project root, never into `10_context` or `20_sources`. The writer assistant creates the copies and extracts there when the project has one; otherwise the drafter creates them and the owner checks the staged files against the manifest before the commit. Before copying, list the target and skip anything already present with the same name; the same manifest run twice creates nothing.
 3. Batch verification on the staged files by the drafter. Mechanical: every planned file present and nothing else; every extract with a `Source:` block that resolves to the planned sources and certainty tags on factual bullets; no staged original is personal data. Semantic: a sample of extracts checked against their sources for time windows, dates, units and claims presented as facts.
 4. Commit: the drafter moves the verified files into `20_sources` and `10_context` (the move keeps each Drive ID); then the writer applies the index rows in one write and the log entry in one write, or a person pastes them, each read back before the next.
 5. On failure: trash `_staging/`, correct the manifest, run again. Nothing canonical was touched.
 
-A clean project has no `_staging/` folder. In local mode `check_index.py` does not scan it; check by listing the project folder.
+Rules: one open ingest order at a time. A clean project has no `_staging/` folder. In local mode `check_index.py` does not scan it; check by listing the project folder.
 
 ## Multi-assistant use
 

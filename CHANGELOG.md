@@ -23,6 +23,8 @@ All notable changes to this project are documented here. The format follows Keep
 - README compatibility table gains a "Writes in place" column; ChatGPT recorded as a verified writer.
 - The Claude and generic instruction blocks become drafter blocks.
 - Sample project carries the new sections.
+- `create_project()` takes its options after `today` as keyword-only arguments.
+- Ingest orders: when a project has no writer assistant, the drafter creates the staged files and the owner checks them against the manifest before the commit.
 
 ## [0.2.0] - 2026-09-12
 

@@ -104,7 +104,7 @@ Three or four people: use `duo` when everyone edits; use `group` when most peopl
 
 ### Google Docs
 
-Default for browser-first collaboration. The connector can create and read the documents, but the verified connector cannot rewrite existing file contents in place. Changes to an existing index, log or instruction document therefore use a propose → human paste → re-read confirmation flow.
+Default for browser-first collaboration. The connector can create and read the documents, but the verified connector cannot rewrite existing file contents in place. Changes to an existing index, log or instruction document therefore travel as a change order (Workflow 7) that a person applies by paste, or that a verified writer assistant applies in place; someone re-reads the document by ID afterwards.
 
 ### Markdown / Obsidian vault
 

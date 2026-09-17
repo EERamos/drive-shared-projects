@@ -70,3 +70,9 @@ def test_claude_block_mentions_change_orders() -> None:
     text = _read("project-instruction.md")
     assert "change order" in text
     assert "never modify a document that already exists" in text
+
+
+def test_generic_block_equals_drafter_block() -> None:
+    generic = _read("assistant-instruction-generic.md").split("---")[1].strip()
+    drafter = _read("roles/drafter.md").split("---")[1].strip()
+    assert generic == drafter

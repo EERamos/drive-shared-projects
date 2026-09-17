@@ -2,7 +2,7 @@ Copy this file for a bulk ingest: more than one source, or any ingest run by a w
 
 # Ingest order {{ORDER_NUMBER}} - {{SHORT_TITLE}}
 
-Date: {{DATE}}. Drafted by: {{WRITER_OR_DRAFTER}}. Approved by: {{OWNER}}. Executed by: {{WRITER}}. Verified and committed by: {{DRAFTER}}.
+Date: {{DATE}}. Drafted by: {{WRITER_OR_DRAFTER}}. Approved by: {{OWNER}}. Executed by: {{EXECUTOR}} (the writer assistant if the project has one, otherwise the drafter). Verified and committed by: {{DRAFTER}}.
 
 ## 1. Sources to copy
 
