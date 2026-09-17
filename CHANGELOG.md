@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format follows Keep
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-17
+
+### Added
+
+- Assistant roles (drafter, writer, verifier) recorded in `00_INSTRUCTIONS`, with `init_project.py --drafter/--writer/--verifier`; defaults reproduce v0.2.0.
+- The change order as the only path for a change to an existing document: `templates/change-order.md`, Workflow 7.
+- The ingest order for bulk ingests, with a transient `_staging/` folder, batch verification and commit by moving: `templates/ingest-order.md`, Workflow 8.
+- Per-role instruction blocks in `templates/roles/`.
+- `references/assistant-roles.md` with the writer verification test and the status table per assistant.
+- `tests/test_templates.py` and `tests/test_docs.py`.
+
+### Changed
+
+- `Connector constraint` in SKILL.md becomes `Write paths`; four new global rules (change orders, ingest orders, read-back after every write, decide the split before writing).
+- Setup collects roles; ingest and decision workflows route writes through change orders.
+- Connector reference: Markdown-to-Doc conversion joins single-newline lines into one paragraph; two checklist rows recorded as passed on 2026-09-17.
+- README compatibility table gains a "Writes in place" column; ChatGPT recorded as a verified writer.
+- The Claude and generic instruction blocks become drafter blocks.
+- Sample project carries the new sections.
+
 ## [0.2.0] - 2026-09-12
 
 ### Added
@@ -49,6 +69,7 @@ All notable changes to this project are documented here. The format follows Keep
 - Example project under examples/sample-project.
 - Installers for Claude Code (install.ps1, install.sh).
 
-[Unreleased]: https://github.com/EERamos/drive-shared-projects/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/EERamos/drive-shared-projects/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/EERamos/drive-shared-projects/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/EERamos/drive-shared-projects/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/EERamos/drive-shared-projects/releases/tag/v0.1.0

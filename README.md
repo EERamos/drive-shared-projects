@@ -85,6 +85,8 @@ The names are fixed because the scripts and prompt templates key on them.
 4. **Decision logging** — append decisions and lessons to `90_LOG`; never rewrite history.
 5. **Maintenance** — validate identity, index consistency, source links, size limits and vault links.
 6. **Sync check** — for vault projects, compare the local source of truth with a Drive listing.
+7. **Change order** — the only way a change to an existing document travels: drafted by one party, approved by the owner, applied by another, read back twice.
+8. **Ingest order** — a bulk ingest runs into a transient `_staging/` folder, is verified there, and is committed by moving files into place; nothing canonical is touched before verification.
 
 ## Modes
 
@@ -124,19 +126,32 @@ The stable `drive_id` lets `build_index.py` recognize a rename as the same file 
 
 See `references/vault-setup.md` for sync options and the Drive-listing check.
 
+## Assistant roles, change orders and ingest orders
+
+Roles are recorded in `00_INSTRUCTIONS` and are independent of the mode:
+
+- the drafter analyses, synthesises, creates new documents and writes change orders; it never modifies an existing document;
+- the writer applies change orders inside the existing document, keeping its Drive ID, and re-reads afterwards; it never decides the content and never re-creates a document;
+- an optional verifier reads applied changes and checks them against the order;
+- the owner approves every order.
+
+A change order has five fields: target and Drive ID; what changes and why; the exact text; what must be true after the write; who applies it. A bulk ingest travels as an ingest order: manifest first, execution into `_staging/`, verification on the staged files, commit by moving them into place (the move keeps every Drive ID), then one write to the index and one to the log. The writer role is granted only after the verification test in `references/assistant-roles.md`.
+
+Defaults reproduce a single-assistant project: drafter Claude, writer a person by paste, no verifier. Templates: `templates/change-order.md`, `templates/ingest-order.md`, `templates/roles/`.
+
 ## Compatibility status
 
 The **protocol** is vendor-neutral; connector behavior is not. Do not confuse the two.
 
-| Assistant / environment | Protocol fit | End-to-end verification in this repo |
-| --- | --- | --- |
-| Claude + Drive connector | reference implementation | read/create behavior verified; existing-content rewrite unsupported |
-| Claude Code + local md mirror | reference implementation | supported by local scripts |
-| ChatGPT + Drive access | designed to consume the same folder | not yet verified end-to-end here |
-| Gemini + Drive access | designed to consume the same folder | not yet verified end-to-end here |
-| Grok / Copilot / local model | compatible when a Drive/files tool exists | not yet verified end-to-end here |
+| Assistant / environment | Protocol fit | Writes in place | End-to-end verification in this repo |
+| --- | --- | --- | --- |
+| Claude + Drive connector | reference implementation | no; creates and reads | read/create/rename verified 2026-09-11; existing-content rewrite unsupported |
+| Claude Code + local md mirror | reference implementation | via the local file | supported by local scripts |
+| ChatGPT + Drive access | designed to consume the same folder | yes, verified 2026-09-17 | in a real project a document kept its Drive ID while its content changed; open-by-ID not confirmed, open-by-name works |
+| Gemini + Drive access | designed to consume the same folder | not verified | not yet verified end-to-end here; starts as verifier |
+| Grok / Copilot / local model | compatible when a Drive/files tool exists | not verified | not yet verified end-to-end here |
 
-Use `templates/assistant-instruction-generic.md` outside Claude.
+Use the blocks in `templates/roles/` outside Claude; `templates/assistant-instruction-generic.md` is kept as the drafter block.
 
 ## Install
 
@@ -279,7 +294,7 @@ GitHub Actions runs the same quality gates across the supported Python matrix.
 | Path | Purpose |
 | --- | --- |
 | `SKILL.md` | workflows and operating rules |
-| `templates/` | project documents and prompt blocks |
+| `templates/` | project documents, prompt blocks per role, change and ingest orders |
 | `references/` | connector behavior, governance and vault setup |
 | `scripts/` | deterministic setup/index/sync tools |
 | `tests/` | pytest suite |

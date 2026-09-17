@@ -35,3 +35,13 @@ def test_skill_has_write_paths_and_new_workflows() -> None:
     assert "## Workflow 8: Ingest order" in text
     assert "_staging" in text
     assert "templates/roles/" in text
+
+
+def test_readme_changelog_and_version_are_0_3_0() -> None:
+    readme = _read("README.md")
+    assert "Writes in place" in readme
+    assert "7. **Change order**" in readme
+    assert "8. **Ingest order**" in readme
+    assert "## Assistant roles, change orders and ingest orders" in readme
+    assert "## [0.3.0]" in _read("CHANGELOG.md")
+    assert 'version = "0.3.0"' in _read("pyproject.toml")

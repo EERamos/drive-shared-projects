@@ -2,7 +2,7 @@
 # standalone modules run with python scripts/<name>.py, not an importable package.
 [project]
 name = "drive-shared-projects"
-version = "0.2.0"
+version = "0.3.0"
 description = "Portable Drive-backed shared memory and governance for AI-assisted projects"
 requires-python = ">=3.10"
 license = { text = "MIT" }
