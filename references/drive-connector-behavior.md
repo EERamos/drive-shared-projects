@@ -17,6 +17,7 @@ What Claude can expect when it reads and writes a project folder through the Goo
 | Base64 download | Exists, returns the whole file base64-encoded. | Never used; it wastes context. |
 | Markdown table inside a Doc created from Markdown | Comes back with an empty header row on top and the real header as a bold data row; underscores arrive escaped as \_. | Readable for Claude. The scripts parse local files, never connector output, so the index header rule is unaffected. |
 | Plain .md file (created without conversion) | Comes back with Markdown punctuation escaped (\# for headings, \- for bullets) and two trailing spaces per line. | Readable but noisy. Docs format is the more legible choice when the project is not in a vault or repo. |
+| Markdown to Doc conversion | Consecutive lines separated by a single newline are joined into one paragraph. | Put a blank line between standalone lines (header block, Source: lines). Bullets are unaffected. |
 
 The 50,000-character limit is a margin, not a measurement. What was measured is a 30 KB document that arrived complete and a 54 KB one that did not. The exact cutoff between them was never found, so the rule sits below the failure with room to spare.
 
@@ -52,8 +53,8 @@ Four of the items are connector operations Claude runs. Two are the paste path, 
 | Create Doc from Markdown | Claude Code desktop with the claude.ai Drive connector | 2026-09-11 | Pass. text/markdown content became a Google Doc with real headings, lists and a table; read back by ID as Markdown. | Fall back to md format, or paste the Markdown into a Doc by hand. |
 | Create .md without conversion | Claude Code desktop with the claude.ai Drive connector | 2026-09-11 | Pass. File kept mimeType text/markdown; rename with update_file kept the same ID. | Use docs format for this environment, or create the .md by hand. |
 | Share as Commenter | pending (needs a second account) | pending | pending | Share from the browser and confirm the other account sees the folder in its own connector. |
-| Edit Doc in the browser keeps ID | pending | pending | pending | Re-record the new ID in the Drive IDs block of 00_INSTRUCTIONS and in the index row. |
-| User pastes a log entry, Claude re-reads it | pending | pending | pending | Check the paste landed in the Decisions section and that no earlier entry was overwritten. |
+| Edit Doc in the browser keeps ID | Claude Code desktop with the claude.ai Drive connector | 2026-09-17 | Pass. In a real project, 01_INDEX kept its Drive ID after a human paste and after an assistant's in-place edits over two days. | Re-record the new ID in the Drive IDs block of 00_INSTRUCTIONS and in the index row. |
+| User pastes a log entry, Claude re-reads it | Claude Code desktop with the claude.ai Drive connector | 2026-09-17 | Pass with a note. Entries appended as plain text landed after the Lessons section; the read-back by ID found them and the structure was repaired. This is the origin of the read-back rule. | Check the paste landed in the Decisions section and that no earlier entry was overwritten. |
 
 ## Reading rules Claude follows
 

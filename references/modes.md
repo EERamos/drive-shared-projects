@@ -11,6 +11,8 @@ The skill asks for the mode during setup and records it in 00_INSTRUCTIONS. The 
 | Changing 00_INSTRUCTIONS | direct | direct, then a log entry | approval first; owner records the decision, then edits |
 | Assistant confirms before writing | always | always | always |
 
+Assistant roles are independent of the mode. The mode says who decides; the roles in 00_INSTRUCTIONS say which assistant drafts, which one writes and which one verifies. A writer applies what an owner approved, never its own decision; in group mode, a change order or ingest order that touches 01_INDEX or 90_LOG needs an owner's approval. See references/assistant-roles.md.
+
 ## Choosing a mode
 
 - solo: one person. Fastest for personal projects and prototypes.
