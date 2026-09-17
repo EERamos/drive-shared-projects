@@ -25,3 +25,13 @@ def test_connector_reference_records_paragraph_merging() -> None:
 
 def test_modes_reference_mentions_assistant_roles() -> None:
     assert "Assistant roles are independent of the mode" in _read("references/modes.md")
+
+
+def test_skill_has_write_paths_and_new_workflows() -> None:
+    text = _read("SKILL.md")
+    assert "## Write paths" in text
+    assert "## Connector constraint" not in text
+    assert "## Workflow 7: Change order" in text
+    assert "## Workflow 8: Ingest order" in text
+    assert "_staging" in text
+    assert "templates/roles/" in text
