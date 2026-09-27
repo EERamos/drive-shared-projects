@@ -151,7 +151,7 @@ The **protocol** is vendor-neutral; connector behavior is not. Do not confuse th
 | Assistant / environment | Protocol fit | Writes in place | End-to-end verification in this repo |
 | --- | --- | --- | --- |
 | Claude + Drive connector | reference implementation | no; creates and reads | read/create/listing behavior verified 2026-09-11; existing-content rewrite unsupported; Docs index validated by `check_drive.py` from saved connector results |
-| Claude Code + local md mirror | reference implementation | via the local file | supported by local scripts |
+| Claude Code + local md mirror | reference implementation | via the local file | local scripts covered by the test suite; whether a synchronizer keeps Drive IDs across renames is pending the test in `references/vault-setup.md` |
 | ChatGPT + Drive access | designed to consume the same folder | yes, verified 2026-09-17 | in a real project a document kept its Drive ID while its content changed; open-by-ID not confirmed, open-by-name works |
 | Gemini + Drive access | designed to consume the same folder | not verified | not yet verified end-to-end here; starts as verifier |
 | Grok / Copilot / local model | compatible when a Drive/files tool exists | not verified | not yet verified end-to-end here |
@@ -278,7 +278,18 @@ A successful write also refreshes `Last updated`.
 
 ## Check an Obsidian/Drive mirror
 
-Export or produce a CSV listing with:
+In Claude Code with the Drive connector, list the project folder, `10_context` and `20_sources` by ID, save the results as in the Docs check above, and give `check_drive.py` the local files as the two documents:
+
+```bash
+python ~/.claude/skills/drive-shared-projects/scripts/check_drive.py \
+  --instructions ./quant-research/00_INSTRUCTIONS.md \
+  --index ./quant-research/01_INDEX.md \
+  --context-listing 10_context.json \
+  --sources-listing 20_sources.json \
+  --project-listing project.json
+```
+
+No CSV is needed, and a rename is matched by Drive ID. Without the connector, export or produce a CSV listing with:
 
 ```csv
 path,drive_id

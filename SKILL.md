@@ -78,7 +78,7 @@ Trigger: the user wants a new shared project.
 5. Do **not** add the ID of `00_INSTRUCTIONS` inside itself. The project instruction block already carries that ID; removing the self-reference avoids a circular user-paste step.
 6. Fill `templates/project-instruction.md` (Claude, drafter by default) and one block from `templates/roles/` per other assistant that takes part, with the IDs of `00_INSTRUCTIONS`, `01_INDEX`, `90_LOG` and the folder path, and give them to the user.
 7. Apply sharing rules from `references/modes.md`.
-8. If vault mode, use `templates/source-extract-vault.md`, confirm the sync method, keep `.obsidian/` outside the shared project folder and run maintenance after IDs are populated.
+8. If vault mode, use `templates/source-extract-vault.md`, confirm the sync method, keep `.obsidian/` outside the shared project folder, take the IDs from Drive after the first sync (`references/vault-setup.md`) and run maintenance after IDs are populated.
 
 ## Workflow 2: Session start
 
@@ -193,6 +193,21 @@ A successful write refreshes `Last updated`. Vault frontmatter can supply `drive
 
 Trigger: an Obsidian/local project is mirrored to Drive and the user wants to verify publication state.
 
+In Claude Code with the Drive connector:
+
+1. List the project folder, `10_context` and `20_sources` by their recorded IDs with `parentId = '<folder ID>'` and save each result verbatim, as in Workflow 5.
+2. Run `check_drive.py` with the local files as the two documents:
+
+   ```bash
+   python <skill>/scripts/check_drive.py --instructions <project>/00_INSTRUCTIONS.md \
+     --index <project>/01_INDEX.md --context-listing 10_context.json \
+     --sources-listing 20_sources.json --project-listing project.json
+   ```
+
+   No CSV is needed, and renames are matched by Drive ID: `RENAMED_FILE` means the index still has the old name, so run `build_index.py --write`; `ID_MISMATCH` means the sync re-created the file under a new ID.
+
+Without the connector:
+
 1. Obtain/export a Drive listing CSV with columns `path,drive_id` for the project files.
 2. Run:
 
@@ -200,10 +215,13 @@ Trigger: an Obsidian/local project is mirrored to Drive and the user wants to ve
    python <skill>/scripts/check_sync.py --root <project> --drive-csv <listing.csv>
    ```
 
-3. Resolve:
-   - `LOCAL_ONLY`: publish/sync the local file;
-   - `DRIVE_ONLY`: decide whether it is an intentional remote addition before importing/deleting anything. A `_staging/` entry while an ingest order is open is an intentional remote addition.
-   - `ID_MISMATCH`: stop and reconcile identity before continuing.
+Resolve:
+
+- `LOCAL_ONLY`, or `STALE_ROW` in the Drive check: publish/sync the local file;
+- `DRIVE_ONLY`, or `MISSING_ROW` in the Drive check: decide whether it is an intentional remote addition before importing/deleting anything. A `_staging/` entry while an ingest order is open is an intentional remote addition.
+- `ID_MISMATCH`: stop and reconcile identity before continuing.
+
+In a vault the synchronizer creates the Drive folders, so the canonical IDs come from Drive after the first sync; `references/vault-setup.md` has the procedure and the table of synchronizers verified to keep Drive IDs across renames.
 
 The vault is authoritative; Drive is the mirror. Avoid simultaneous two-way edits unless the chosen sync mechanism has a deliberate conflict strategy.
 
