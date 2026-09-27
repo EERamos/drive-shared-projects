@@ -9,7 +9,7 @@ Findings:
     MISSING_PROJECT_ID       canonical project ID absent/TODO-ID, or no Drive IDs section
     DUPLICATE_PROJECT_ID     a canonical project ID collides with another one or a row
     UNREADABLE              context file or 00_INSTRUCTIONS is not readable UTF-8 text
-    TOO_LARGE               context file exceeds the configured character cap
+    TOO_LARGE               context file exceeds the configured cap in UTF-8 bytes
     INVALID_SOURCE_REFERENCE Source: path or Drive ID does not match the project
     MISSING_FRONTMATTER     vault context file lacks required metadata
     BROKEN_LINK             vault wikilink target does not exist
@@ -229,9 +229,16 @@ def check(root: Path, max_chars: int = DEFAULT_MAX_CHARS) -> list[Finding]:
         except (UnicodeDecodeError, OSError) as exc:
             findings.append(Finding(FindingKind.UNREADABLE, rel, f"{type(exc).__name__}: {exc}"))
             continue
-        if len(text) > max_chars:
+        # The connector limit was observed in bytes. A UTF-8 byte count is never below the
+        # character count, so capping the bytes caps the characters too.
+        size = len(text.encode("utf-8"))
+        if size > max_chars:
             findings.append(
-                Finding(FindingKind.TOO_LARGE, rel, f"{len(text)} chars, limit {max_chars}")
+                Finding(
+                    FindingKind.TOO_LARGE,
+                    rel,
+                    f"{len(text)} chars, {size} UTF-8 bytes, limit {max_chars}",
+                )
             )
 
         findings.extend(_source_reference_findings(rel, text, on_disk, rows_by_file))
@@ -268,7 +275,12 @@ def check(root: Path, max_chars: int = DEFAULT_MAX_CHARS) -> list[Finding]:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Validate 01_INDEX against the folder.")
     parser.add_argument("--root", required=True, type=Path, help="Project folder.")
-    parser.add_argument("--max-chars", type=int, default=DEFAULT_MAX_CHARS)
+    parser.add_argument(
+        "--max-chars",
+        type=int,
+        default=DEFAULT_MAX_CHARS,
+        help="Cap for every context file, applied to its UTF-8 byte count.",
+    )
     return parser
 
 

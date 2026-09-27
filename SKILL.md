@@ -13,7 +13,7 @@ This is not an agent framework. It provides the context, identity, evidence and 
 
 - `00_INSTRUCTIONS`: role, tone, rules, mode, format and Drive IDs. It intentionally does not store its own ID.
 - `01_INDEX`: one row per file with path, Drive ID, summary, read rule and owner.
-- `10_context/`: compact working knowledge. One topic per file, under 50,000 characters.
+- `10_context/`: compact working knowledge. One topic per file, under 50,000 characters. The cap is checked on the UTF-8 byte count, so accented or non-Latin text reaches it with fewer characters.
 - `20_sources/`: originals as received.
 - `90_LOG`: append-only decisions and lessons.
 
@@ -85,7 +85,7 @@ Trigger: the user wants a new shared project.
 2. Read `01_INDEX` by ID.
 3. Load no other file unless the index says it is relevant/always-read or the user asks.
 4. Prefer `10_context`; open `20_sources` only for exact figures or missing detail.
-5. Respect the 50,000-character context-file cap. If metadata shows a file exceeds it, propose a split instead of silently chunk-reading it.
+5. Respect the 50,000-character context-file cap, counted in UTF-8 bytes. If metadata shows a file exceeds it, propose a split instead of silently chunk-reading it.
 
 ## Workflow 3: Ingest a source
 
@@ -158,7 +158,7 @@ The validator checks:
 - missing and duplicate Drive IDs in index rows;
 - a missing or unreadable Drive IDs section in `00_INSTRUCTIONS`;
 - missing/colliding canonical project IDs recorded in `00_INSTRUCTIONS`;
-- unreadable/oversized context files;
+- unreadable context files, and context files over the size cap counted in UTF-8 bytes;
 - the explicit `Source:` reference of an extract: the path must resolve under `20_sources` and a declared Drive ID must match the index row. There is no filename-based topic heuristic; the `Source:` line is the only extract-to-source relationship;
 - in vault mode, required frontmatter and broken `[[wikilinks]]`.
 

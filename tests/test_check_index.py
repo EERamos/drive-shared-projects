@@ -171,6 +171,28 @@ def test_size_cap_applies_to_every_context_file(clean_tree: Path) -> None:
     assert findings[0].path == "10_context/table.csv"
 
 
+def test_too_large_counts_utf8_bytes_not_only_characters(clean_tree: Path) -> None:
+    text = "# Pricing\n\nSource: 20_sources/pricing.pdf (Drive ID: abc)\n" + "é" * 40
+    (clean_tree / CONTEXT_DIR / "pricing.md").write_text(text, encoding="utf-8")
+    cap = len(text) + 10
+    findings = check(clean_tree, max_chars=cap)
+    assert findings == [
+        Finding(
+            FindingKind.TOO_LARGE,
+            "10_context/pricing.md",
+            f"{len(text)} chars, {len(text) + 40} UTF-8 bytes, limit {cap}",
+        )
+    ]
+
+
+def test_a_context_file_exactly_at_the_cap_is_not_too_large(clean_tree: Path) -> None:
+    text = "# Pricing\n\nSource: 20_sources/pricing.pdf (Drive ID: abc)\n\nAño fiscal.\n"
+    (clean_tree / CONTEXT_DIR / "pricing.md").write_text(text, encoding="utf-8")
+    size = len(text.encode("utf-8"))
+    assert check(clean_tree, max_chars=size) == []
+    assert [f.kind for f in check(clean_tree, max_chars=size - 1)] == [FindingKind.TOO_LARGE]
+
+
 def test_duplicate_row(clean_tree: Path) -> None:
     _write_index(
         clean_tree,

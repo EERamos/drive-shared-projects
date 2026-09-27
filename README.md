@@ -59,7 +59,7 @@ The scripts turn several workflow rules into deterministic checks:
 - `00_INSTRUCTIONS` is readable and carries a Drive IDs section;
 - the canonical project IDs in `00_INSTRUCTIONS` (project/context/source folders, INDEX and LOG) are populated and do not collide with each other or indexed files;
 - a `Source:` relationship points to a real source and, when supplied, the same Drive ID recorded in the index;
-- context files stay under the configured size cap;
+- context files stay under the configured size cap, 50,000 by default, counted in UTF-8 bytes so accented text cannot slip past it;
 - destructive index refreshes require an explicit `--allow-drop`;
 - vault projects require frontmatter and valid Obsidian wikilinks;
 - a local vault can be compared with a Drive listing using `check_sync.py`;

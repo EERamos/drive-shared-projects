@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows Keep
 
 ## [Unreleased]
 
+### Changed
+
+- `check_index.py` applies the context size cap to the UTF-8 byte count, the unit in which the connector limit was observed (30 KB read complete, 54 KB did not). A byte count never falls below the character count, so the cap still bounds characters; accented or non-Latin text now reaches it sooner. The default of 50,000 and the `--max-chars` flag are unchanged, and the `TOO_LARGE` detail reports both counts. SKILL.md, README, the connector reference, the instructions template and the example say so; the connector reference drops its word estimate, which was off by a factor of three.
+
 ## [0.3.0] - 2026-09-17
 
 ### Added
