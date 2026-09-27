@@ -13,7 +13,8 @@ Every listing is bound to one folder. Both content listings are mandatory, so an
 listing means an empty folder and a folder can never go unchecked. Every entry must belong
 to the folder it was listed for: the same `parentId` recorded in 00_INSTRUCTIONS for JSON,
 a path under that folder for CSV. Anything else is a usage error, not a finding. A CSV path
-below a subfolder stands for that subfolder, as a JSON listing would show it.
+below a subfolder stands for that subfolder, as a JSON listing would show it. Entries whose
+name or path has a component starting with a dot are skipped, as they are locally.
 
 Findings:
     MISSING_PROJECT_ID       canonical project ID absent/TODO-ID, or no Drive IDs section
@@ -60,6 +61,7 @@ from common import (
     duplicate_row_counts,
     first_rows_by_file,
     instruction_drive_ids,
+    is_hidden_path,
     is_real_drive_id,
     missing_canonical_ids,
     parse_args_or_exit,
@@ -189,6 +191,8 @@ def _place(listing: Listing, instructions_text: str, project_ids: dict[str, str]
     foreign: list[str] = []
     subfolders: set[str] = set()
     for entry in listing.entries:
+        if is_hidden_path(entry.path if entry.path is not None else entry.title):
+            continue  # dot entries such as .gitkeep or .obsidian are skipped on both sides
         if entry.path is not None:
             if not _in_folder(entry.path, listing.folder):
                 foreign.append(entry.path)

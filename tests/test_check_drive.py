@@ -205,6 +205,15 @@ def test_csv_paths_below_a_subfolder_report_the_subfolder_once() -> None:
     ]
 
 
+def test_dot_entries_are_skipped_in_json_and_csv_listings() -> None:
+    rows = [IndexRow("10_context/Topic", "1t", "T", "always", "Ana")]
+    context = [_entry("1t", "Topic", CONTEXT), _entry("1k", ".gitkeep", CONTEXT, "text/plain")]
+    sources = parse_listing("path,drive_id\n20_sources/.gitkeep,1k2\n20_sources/.trash/x.pdf,1x\n")
+    project = [*_clean_root(), _entry("1obs", ".obsidian", PROJECT, FOLDER_MIME_TYPE)]
+    listings = _listings(context=context, sources=sources, project=project)
+    assert check_drive(_instructions(), _index(rows), listings) == []
+
+
 def test_entries_from_another_folder_are_a_listing_error() -> None:
     with pytest.raises(ListingError, match=SOURCES):
         check_drive(

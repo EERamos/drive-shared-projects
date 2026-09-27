@@ -319,6 +319,15 @@ def relative_posix(root: Path, path: Path) -> str:
     return path.relative_to(root).as_posix()
 
 
+def is_hidden_path(relative: str) -> bool:
+    """Whether any component of a relative path starts with a dot.
+
+    Every script skips such entries, locally and in Drive listings alike: Obsidian does not
+    show them, and the `.gitkeep` files of `init_project.py` must not need index rows.
+    """
+    return any(part.startswith(".") for part in relative.replace("\\", "/").split("/"))
+
+
 def scan_files(root: Path) -> list[str]:
     """Relative POSIX paths of every non-dot file under context and sources, sorted."""
     found: list[str] = []
@@ -327,8 +336,7 @@ def scan_files(root: Path) -> list[str]:
         if not base.is_dir():
             continue
         for path in base.rglob("*"):
-            relative_parts = path.relative_to(base).parts
-            if path.is_file() and not any(part.startswith(".") for part in relative_parts):
+            if path.is_file() and not is_hidden_path(path.relative_to(base).as_posix()):
                 found.append(relative_posix(root, path))
     return sorted(found)
 

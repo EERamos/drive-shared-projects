@@ -46,6 +46,7 @@ from common import (
     duplicate_drive_id_paths,
     duplicate_row_counts,
     first_rows_by_file,
+    is_hidden_path,
     is_real_drive_id,
     is_vault_project,
     missing_canonical_ids,
@@ -106,7 +107,7 @@ def _nested_folders(root: Path) -> list[str]:
             nested.extend(
                 relative_posix(root, path)
                 for path in base.iterdir()
-                if path.is_dir() and not path.name.startswith(".")
+                if path.is_dir() and not is_hidden_path(path.name)
             )
     return sorted(nested)
 

@@ -19,6 +19,8 @@ Do not edit the same Markdown file concurrently in Drive and the vault unless yo
 
 Keep `.obsidian/` outside the shared project folder. Shared extracts may link to other files inside the project, but should not link to private notes elsewhere in the vault.
 
+Every script skips a file or folder whose name starts with a dot, locally and in Drive listings alike, so a synced `.gitkeep` or `.obsidian/` is never a finding. The same rule means nothing checks that `.obsidian/` stayed outside the project.
+
 ## Sync options
 
 ### A. Google Drive for desktop
