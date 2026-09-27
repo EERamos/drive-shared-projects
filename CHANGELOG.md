@@ -7,12 +7,14 @@ All notable changes to this project are documented here. The format follows Keep
 ### Added
 
 - `NESTED_FOLDER` in `check_index.py`: a folder directly inside `10_context` or `20_sources` is a finding, as it already was in `check_drive.py`, so md format stops accepting what Docs format rejects. Dot folders are skipped like dotfiles. Files below the folder are still scanned, so existing rows do not turn stale.
+- `ID_MISMATCH` in `check_index.py`: a frontmatter `drive_id` that disagrees with the file's index row is a finding. It applies to every text file `build_index.py` reads identity from, in any md project and in `20_sources` too, because the frontmatter wins there silently. Before, a wrong frontmatter ID passed the check and replaced the row on the next write.
+- In vault mode a frontmatter `drive_id` still at `TODO-ID` is reported as `MISSING_DRIVE_ID`, which is what Workflow 3 promised ("treat maintenance as failing until it is populated") and did not happen.
+- `build_index.py` names every row whose ID a frontmatter ID replaces, on stderr, in the preview ("would replace") and on write ("replaced"). Which side wins is unchanged. New helper `id_conflicts`.
 
 ### Changed
 
 - `10_context` and `20_sources` are flat in both formats. The ingest order asks for a file name under `20_sources` instead of a target subfolder (SKILL.md Workflow 8, `references/assistant-roles.md`, `templates/ingest-order.md`), which closes the contradiction with `check_drive.py`: an ingest into a subfolder was reported as `NESTED_FOLDER` with its rows `STALE_ROW`. The rule is explicit in SKILL.md, README, the instructions template, the example and the architecture overview.
 - `check_drive.py` reports a CSV path below a subfolder as `NESTED_FOLDER` for that subfolder and leaves the file unplaced, as a JSON listing would; before, a nested CSV path passed clean.
-
 - `check_index.py` applies the context size cap to the UTF-8 byte count, the unit in which the connector limit was observed (30 KB read complete, 54 KB did not). A byte count never falls below the character count, so the cap still bounds characters; accented or non-Latin text now reaches it sooner. The default of 50,000 and the `--max-chars` flag are unchanged, and the `TOO_LARGE` detail reports both counts. SKILL.md, README, the connector reference, the instructions template and the example say so; the connector reference drops its word estimate, which was off by a factor of three.
 
 ## [0.3.0] - 2026-09-17

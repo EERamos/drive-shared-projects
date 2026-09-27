@@ -53,7 +53,7 @@ owner: "Ana"
 ---
 ```
 
-`check_index.py` reports `MISSING_FRONTMATTER` if a required key is absent/empty.
+`check_index.py` reports `MISSING_FRONTMATTER` if a required key is absent/empty, `MISSING_DRIVE_ID` while `drive_id` is still `TODO-ID`, and `ID_MISMATCH` when `drive_id` disagrees with the file's index row. `build_index.py` lets the frontmatter ID win and says so on stderr, so fix whichever side is wrong before writing the index.
 
 ## Wikilinks
 

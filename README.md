@@ -63,6 +63,7 @@ The scripts turn several workflow rules into deterministic checks:
 - `10_context` and `20_sources` stay flat: a subfolder is reported as `NESTED_FOLDER` in both formats;
 - destructive index refreshes require an explicit `--allow-drop`;
 - vault projects require frontmatter and valid Obsidian wikilinks;
+- a Drive ID recorded in frontmatter agrees with the file's index row, and a vault frontmatter ID is populated;
 - a local vault can be compared with a Drive listing using `check_sync.py`;
 - a Docs project is validated against the real Drive listing with `check_drive.py`: rows, IDs, renames, duplicate titles and the fixed layout.
 
@@ -126,7 +127,7 @@ owner: "Ana"
 ---
 ```
 
-The stable `drive_id` lets `build_index.py` recognize a rename as the same file instead of treating it as a deletion plus a new file.
+The stable `drive_id` lets `build_index.py` recognize a rename as the same file instead of treating it as a deletion plus a new file. Because the ID then lives in two places, `check_index.py` reports `ID_MISMATCH` when the frontmatter and the index row disagree, and `build_index.py` warns before a frontmatter ID replaces a different one in the index.
 
 See `references/vault-setup.md` for sync options and the Drive-listing check.
 

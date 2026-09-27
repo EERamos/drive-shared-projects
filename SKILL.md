@@ -96,7 +96,7 @@ Trigger: the user wants a new shared project.
    - vault project: `templates/source-extract-vault.md` with frontmatter `title`, `source`, `drive_id`, `updated`, `owner`.
 3. Propose the extract plus index rows for source and extract. Wait for confirmation.
 4. Create the extract in `10_context`.
-5. Fill its actual Drive identity where the format allows it. In a vault/local mirror, frontmatter `drive_id` is the stable identity used across renames. If the sync has not assigned an ID yet, leave `TODO-ID` and treat maintenance as failing until it is populated.
+5. Fill its actual Drive identity where the format allows it. In a vault/local mirror, frontmatter `drive_id` is the stable identity used across renames. If the sync has not assigned an ID yet, leave `TODO-ID` and treat maintenance as failing until it is populated: in a vault, `check_index.py` reports a frontmatter `TODO-ID` as `MISSING_DRIVE_ID`.
 6. Update `01_INDEX` through a change order (Workflow 7). Refresh `Last updated`.
 7. Re-read/validate. `Source:` must resolve to the actual source and the source Drive ID must match the index. In Docs format, in Claude Code, run the Docs check of Workflow 5 so the new row is verified against the real IDs.
 
@@ -162,7 +162,8 @@ The validator checks:
 - unreadable context files, and context files over the size cap counted in UTF-8 bytes;
 - a folder inside `10_context` or `20_sources` (`NESTED_FOLDER`), the same layout rule the Docs check applies;
 - the explicit `Source:` reference of an extract: the path must resolve under `20_sources` and a declared Drive ID must match the index row. There is no filename-based topic heuristic; the `Source:` line is the only extract-to-source relationship;
-- in vault mode, required frontmatter and broken `[[wikilinks]]`.
+- a frontmatter `drive_id` that disagrees with the file's index row (`ID_MISMATCH`), in any md project, because `build_index.py` lets the frontmatter win;
+- in vault mode, required frontmatter, a frontmatter `drive_id` still at `TODO-ID` (`MISSING_DRIVE_ID`) and broken `[[wikilinks]]`.
 
 Exit `0` means clean, `1` means findings, `2` means usage/setup error.
 
@@ -186,7 +187,7 @@ If rows would disappear, the write is refused. After the user reviews the stale 
 python <skill>/scripts/build_index.py --root <project> --write --allow-drop
 ```
 
-A successful write refreshes `Last updated`. Vault frontmatter can supply `drive_id`, `title` and `owner`; a unique stable ID lets a renamed file inherit its previous human-maintained row fields.
+A successful write refreshes `Last updated`. Vault frontmatter can supply `drive_id`, `title` and `owner`; a unique stable ID lets a renamed file inherit its previous human-maintained row fields. A frontmatter `drive_id` wins over a different ID already in the row; the preview and the write name every such replacement on stderr, so check it before writing.
 
 ## Workflow 6: Vault sync check
 

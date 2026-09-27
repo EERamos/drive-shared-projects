@@ -5,7 +5,7 @@ from pathlib import Path
 
 from build_index import EXIT_REFUSED, dropped_rows, merge, scan
 from build_index import main as build_main
-from check_index import FindingKind, check
+from check_index import Finding, FindingKind, check
 from common import (
     CONTEXT_DIR,
     INDEX_FILE,
@@ -246,3 +246,65 @@ def test_check_validates_canonical_project_ids(tmp_path: Path) -> None:
     assert FindingKind.DUPLICATE_PROJECT_ID in kinds
     assert any("Project folder" in finding.detail for finding in findings)
     assert any("ctx-id" in finding.detail for finding in findings)
+
+
+def _extract(drive_id: str) -> str:
+    return (
+        f'---\ntitle: "A"\nsource: "20_sources/a.pdf"\ndrive_id: "{drive_id}"\n'
+        'updated: "2026-09-12"\nowner: "Ana"\n---\n# A\n'
+    )
+
+
+def _identity_tree(tmp_path: Path, drive_id: str, *, vault: bool) -> Path:
+    root = _base_tree(tmp_path, vault=vault)
+    (root / SOURCES_DIR / "a.pdf").write_bytes(b"pdf")
+    (root / CONTEXT_DIR / "a.md").write_text(_extract(drive_id), encoding="utf-8")
+    _write_index(
+        root,
+        [
+            IndexRow("10_context/a.md", "a-id", "A", "always", "Ana"),
+            IndexRow("20_sources/a.pdf", "src", "Source", "detail", "Ana"),
+        ],
+    )
+    return root
+
+
+def test_a_frontmatter_id_that_differs_from_the_index_is_an_id_mismatch(tmp_path: Path) -> None:
+    root = _identity_tree(tmp_path, "a-other", vault=True)
+    assert check(root) == [
+        Finding(
+            FindingKind.ID_MISMATCH,
+            "10_context/a.md",
+            "frontmatter drive_id a-other != index ID a-id",
+        )
+    ]
+
+
+def test_the_id_mismatch_applies_outside_the_vault_and_to_text_sources(tmp_path: Path) -> None:
+    root = _identity_tree(tmp_path, "a-other", vault=False)
+    (root / SOURCES_DIR / "notes.md").write_text(
+        '---\ndrive_id: "notes-other"\n---\n# Notes\n', encoding="utf-8"
+    )
+    _write_index(
+        root,
+        [
+            IndexRow("10_context/a.md", "a-id", "A", "always", "Ana"),
+            IndexRow("20_sources/a.pdf", "src", "Source", "detail", "Ana"),
+            IndexRow("20_sources/notes.md", "notes-id", "Notes", "detail", "Ana"),
+        ],
+    )
+    assert [(f.kind, f.path) for f in check(root)] == [
+        (FindingKind.ID_MISMATCH, "10_context/a.md"),
+        (FindingKind.ID_MISMATCH, "20_sources/notes.md"),
+    ]
+
+
+def test_a_vault_frontmatter_id_left_as_todo_is_a_missing_drive_id(tmp_path: Path) -> None:
+    root = _identity_tree(tmp_path, "TODO-ID", vault=True)
+    assert check(root) == [
+        Finding(FindingKind.MISSING_DRIVE_ID, "10_context/a.md", "frontmatter drive_id is TODO-ID")
+    ]
+
+
+def test_a_todo_frontmatter_id_outside_the_vault_is_not_a_finding(tmp_path: Path) -> None:
+    assert check(_identity_tree(tmp_path, "TODO-ID", vault=False)) == []

@@ -4,7 +4,7 @@ Findings:
     MISSING_ROW             file exists but has no index row
     STALE_ROW               row exists but the file is missing
     DUPLICATE_ROW           same file appears more than once in the index
-    MISSING_DRIVE_ID        index row still has TODO-ID or an empty ID
+    MISSING_DRIVE_ID        index row has TODO-ID or no ID, or vault frontmatter has TODO-ID
     DUPLICATE_DRIVE_ID      one populated Drive ID is assigned to multiple rows
     NESTED_FOLDER           a folder inside 10_context or 20_sources; both stay flat
     MISSING_PROJECT_ID       canonical project ID absent/TODO-ID, or no Drive IDs section
@@ -12,6 +12,7 @@ Findings:
     UNREADABLE              context file or 00_INSTRUCTIONS is not readable UTF-8 text
     TOO_LARGE               context file exceeds the configured cap in UTF-8 bytes
     INVALID_SOURCE_REFERENCE Source: path or Drive ID does not match the project
+    ID_MISMATCH             a frontmatter drive_id and the file's index row disagree
     MISSING_FRONTMATTER     vault context file lacks required metadata
     BROKEN_LINK             vault wikilink target does not exist
 
@@ -33,10 +34,12 @@ from common import (
     CONTEXT_DIR,
     DEFAULT_MAX_CHARS,
     FRONTMATTER_REQUIRED,
+    ID_PLACEHOLDER,
     INDEX_FILE,
     INSTRUCTIONS_FILE,
     SCANNED_DIRS,
     SOURCES_DIR,
+    TEXT_SUFFIXES,
     ExitCode,
     IndexRow,
     canonical_id_collisions,
@@ -75,6 +78,7 @@ class FindingKind(Enum):
     UNREADABLE = auto()
     TOO_LARGE = auto()
     INVALID_SOURCE_REFERENCE = auto()
+    ID_MISMATCH = auto()
     MISSING_FRONTMATTER = auto()
     BROKEN_LINK = auto()
 
@@ -166,6 +170,29 @@ def _source_reference_findings(
             )
         ]
     return []
+
+
+def _frontmatter_drive_id(text: str) -> str:
+    return parse_frontmatter(text).get("drive_id", "").strip()
+
+
+def _identity_findings(rel: str, frontmatter_id: str, row: IndexRow | None) -> list[Finding]:
+    """ID_MISMATCH when the frontmatter and the index row both carry an ID and they differ.
+
+    build_index lets a frontmatter ID replace the row's ID in any project, so the check
+    covers every text file it reads, vault or not.
+    """
+    if row is None or not is_real_drive_id(frontmatter_id) or not is_real_drive_id(row.drive_id):
+        return []
+    if frontmatter_id == row.drive_id:
+        return []
+    return [
+        Finding(
+            FindingKind.ID_MISMATCH,
+            rel,
+            f"frontmatter drive_id {frontmatter_id} != index ID {row.drive_id}",
+        )
+    ]
 
 
 def check(root: Path, max_chars: int = DEFAULT_MAX_CHARS) -> list[Finding]:
@@ -270,6 +297,10 @@ def check(root: Path, max_chars: int = DEFAULT_MAX_CHARS) -> list[Finding]:
             )
 
         findings.extend(_source_reference_findings(rel, text, on_disk, rows_by_file))
+        if Path(rel).suffix.lower() in TEXT_SUFFIXES:
+            findings.extend(
+                _identity_findings(rel, _frontmatter_drive_id(text), rows_by_file.get(rel))
+            )
 
         if vault and Path(rel).suffix.lower() == ".md":
             metadata = parse_frontmatter(text)
@@ -282,6 +313,14 @@ def check(root: Path, max_chars: int = DEFAULT_MAX_CHARS) -> list[Finding]:
                         FindingKind.MISSING_FRONTMATTER,
                         rel,
                         "missing required key(s): " + ", ".join(missing_keys),
+                    )
+                )
+            if metadata.get("drive_id", "").strip() == ID_PLACEHOLDER:
+                findings.append(
+                    Finding(
+                        FindingKind.MISSING_DRIVE_ID,
+                        rel,
+                        f"frontmatter drive_id is {ID_PLACEHOLDER}",
                     )
                 )
             for target in wikilink_targets(text):
@@ -297,6 +336,15 @@ def check(root: Path, max_chars: int = DEFAULT_MAX_CHARS) -> list[Finding]:
                             f"wikilink target not found: {target}",
                         )
                     )
+
+    for rel in files:
+        if not rel.startswith(SOURCES_DIR + "/") or Path(rel).suffix.lower() not in TEXT_SUFFIXES:
+            continue
+        try:
+            text = read_text(root / rel)
+        except (UnicodeDecodeError, OSError):
+            continue  # build_index reads no identity from it either
+        findings.extend(_identity_findings(rel, _frontmatter_drive_id(text), rows_by_file.get(rel)))
     return findings
 
 
