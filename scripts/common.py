@@ -228,6 +228,7 @@ def parse_frontmatter(text: str) -> dict[str, str]:
     This is intentionally not a general YAML parser. The project template only emits
     one `key: value` scalar per line and quotes values that may contain punctuation.
     """
+    text = text.removeprefix("\ufeff")  # a byte order mark some Windows editors add
     if not text.startswith("---\n"):
         return {}
     end = text.find("\n---\n", 4)

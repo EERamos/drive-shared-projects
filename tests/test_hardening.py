@@ -308,3 +308,10 @@ def test_a_vault_frontmatter_id_left_as_todo_is_a_missing_drive_id(tmp_path: Pat
 
 def test_a_todo_frontmatter_id_outside_the_vault_is_not_a_finding(tmp_path: Path) -> None:
     assert check(_identity_tree(tmp_path, "TODO-ID", vault=False)) == []
+
+
+def test_frontmatter_after_a_byte_order_mark_is_parsed() -> None:
+    assert parse_frontmatter('\ufeff---\ntitle: "A"\ndrive_id: id1\n---\n# A\n') == {
+        "title": "A",
+        "drive_id": "id1",
+    }

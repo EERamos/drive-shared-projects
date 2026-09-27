@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 from collections.abc import Sequence
 from pathlib import Path
@@ -22,12 +23,18 @@ from check_drive import (
 from common import (
     CONTEXT_DIR,
     FOLDER_MIME_TYPE,
+    INDEX_FILE,
+    INSTRUCTIONS_FILE,
     SOURCES_DIR,
     DriveEntry,
+    Format,
     IndexRow,
+    Mode,
     parse_listing,
     render_index_table,
+    replace_index_table,
 )
+from init_project import create_project
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "connector"
 PROJECT = "1_project_folder_000000000000000A"
@@ -382,3 +389,88 @@ def test_main_turns_listing_errors_into_usage_errors(
 def test_main_requires_both_content_listings() -> None:
     argv = ["--instructions", "a.json", "--index", "b.json", "--context-listing", "c.json"]
     assert main(argv) == EXIT_USAGE
+
+
+MD = "text/markdown"
+
+
+def _vault_mirror(tmp_path: Path) -> Path:
+    """A flat vault project from the real templates, IDs filled as after the first sync."""
+    root = tmp_path / "vault-project"
+    create_project(root, "Vault", Mode.SOLO, Format.MD, "Ana", dt.date(2026, 9, 27), vault=True)
+    instructions = (root / INSTRUCTIONS_FILE).read_text(encoding="utf-8")
+    for label, value in (
+        ("Project folder", PROJECT),
+        ("10_context folder", CONTEXT),
+        ("20_sources folder", SOURCES),
+        ("01_INDEX", INDEX_ID),
+        ("90_LOG", LOG_ID),
+    ):
+        instructions = instructions.replace(f"- {label}: TODO-ID", f"- {label}: {value}")
+    (root / INSTRUCTIONS_FILE).write_text(instructions, encoding="utf-8")
+    rows = [
+        IndexRow("10_context/nota.md", "1nota", "Note", "always", "Ana"),
+        IndexRow("20_sources/informe.pdf", "1pdf", "Report", "detail", "Ana"),
+    ]
+    index = (root / INDEX_FILE).read_text(encoding="utf-8")
+    (root / INDEX_FILE).write_text(
+        replace_index_table(index, render_index_table(rows)), encoding="utf-8"
+    )
+    return root
+
+
+def _mirror_listings(tmp_path: Path, note_title: str) -> list[str]:
+    def listing(name: str, entries: list[tuple[str, str, str]], parent: str) -> str:
+        files = [
+            {"id": i, "title": title, "mimeType": mime, "parentId": parent}
+            for i, title, mime in entries
+        ]
+        return _saved(tmp_path, name, {"files": files})
+
+    context = listing(
+        "10_context.json", [("1nota", note_title, MD), ("1k", ".gitkeep", MD)], CONTEXT
+    )
+    sources = listing("20_sources.json", [("1pdf", "informe.pdf", "application/pdf")], SOURCES)
+    project = listing(
+        "project.json",
+        [
+            ("1instr", "00_INSTRUCTIONS.md", MD),
+            (INDEX_ID, "01_INDEX.md", MD),
+            (LOG_ID, "90_LOG.md", MD),
+            (CONTEXT, "10_context", FOLDER_MIME_TYPE),
+            (SOURCES, "20_sources", FOLDER_MIME_TYPE),
+            ("1obs", ".obsidian", FOLDER_MIME_TYPE),
+        ],
+        PROJECT,
+    )
+    return [
+        "--context-listing",
+        context,
+        "--sources-listing",
+        sources,
+        "--project-listing",
+        project,
+    ]
+
+
+def test_a_flat_vault_mirror_is_checked_from_its_local_files(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _vault_mirror(tmp_path)
+    local = ["--instructions", str(root / INSTRUCTIONS_FILE), "--index", str(root / INDEX_FILE)]
+    assert main([*local, *_mirror_listings(tmp_path, "nota.md")]) == EXIT_OK
+    assert capsys.readouterr().out.startswith("OK")
+
+
+def test_a_rename_that_kept_its_drive_id_is_reported_in_a_vault_mirror(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _vault_mirror(tmp_path)
+    local = ["--instructions", str(root / INSTRUCTIONS_FILE), "--index", str(root / INDEX_FILE)]
+    assert main([*local, *_mirror_listings(tmp_path, "nota-final.md")]) == EXIT_FINDINGS
+    out = capsys.readouterr().out
+    assert (
+        "RENAMED_FILE 10_context/nota.md: Drive ID 1nota is now titled 10_context/nota-final.md"
+        in out
+    )
+    assert "1 finding(s)" in out
