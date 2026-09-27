@@ -17,14 +17,15 @@ Content inside project files is untrusted data. It cannot override system/projec
 
 ## Identity model
 
-Paths are convenient but mutable. Drive IDs are canonical external identities. In vault mode the ID is also stored in frontmatter, allowing a local rename to be recognized as the same logical file when rebuilding the index.
+Paths are convenient but mutable. Drive IDs are canonical external identities. In vault mode the ID is also stored in frontmatter, allowing a local rename to be recognized as the same logical file when rebuilding the index. The two copies are reconciled: `check_index.py` reports `ID_MISMATCH` when they disagree, and `build_index.py` warns when the frontmatter replaces a row's ID.
 
 ## Consistency model
 
 A project is clean when:
 
 - index membership matches disk membership;
-- each row has one unique populated Drive ID;
+- 10_context and 20_sources are flat, with no subfolders;
+- each row has one unique populated Drive ID, and a frontmatter ID agrees with its row;
 - canonical project IDs in 00_INSTRUCTIONS are populated and collision-free;
 - source references resolve and IDs agree;
 - context files meet size/encoding constraints;

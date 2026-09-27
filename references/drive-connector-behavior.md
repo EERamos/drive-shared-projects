@@ -8,7 +8,7 @@ What Claude can expect when it reads and writes a project folder through the Goo
 | --- | --- | --- |
 | Google Docs | Arrive as clean Markdown: # headings, bold, flat lists, tables. A 30 KB document arrived complete. | Docs are the default format for living documents. |
 | Text files (.md, .txt, .csv, .py) | Readable with the read tool even though the official MIME list omits them. | Plain .md projects work. |
-| Size cap | A 54 KB text file exceeded the tool output limit. | Keep every 10_context file under 50,000 characters (about 2,000 to 3,000 words). Split by topic. |
+| Size cap | A 54 KB text file exceeded the tool output limit. | Keep every 10_context file under 50,000 characters, counted as UTF-8 bytes (roughly 8,000 words of English prose). Split by topic. |
 | PDF | Arrives as extracted text. | Originals stay in 20_sources; Claude reads them only for detail. |
 | Folder listing | A search with parentId = '<folder id>' lists the folder's children. Folder IDs are stable. | The index can name folder IDs; Claude can list 20_sources when the index is stale. |
 | Nested lists in Docs | Produce "<!-- end list -->" markers between levels. | Templates and Claude-written documents use flat lists only. |
@@ -23,7 +23,7 @@ What Claude can expect when it reads and writes a project folder through the Goo
 | Folder listing result (2026-09-13) | `{"files": [{"id", "title", "mimeType", "parentId", ...}]}`; Docs carry no `fileExtension`, uploaded files do. | Saved verbatim, it is the listing input of `check_drive.py`. |
 | Markdown to Doc conversion | Consecutive lines separated by a single newline are joined into one paragraph (the row "Two consecutive lines in a Doc (2026-09-13)" above is the measured case). | Put a blank line between standalone lines (header block, Source: lines). Bullets are unaffected. |
 
-The 50,000-character limit is a margin, not a measurement. What was measured is a 30 KB document that arrived complete and a 54 KB one that did not. The exact cutoff between them was never found, so the rule sits below the failure with room to spare.
+The 50,000-character limit is a margin, not a measurement. What was measured is a 30 KB document that arrived complete and a 54 KB one that did not. The exact cutoff between them was never found, so the rule sits below the failure with room to spare. Both measurements are sizes in bytes, so `check_index.py` applies the cap to the UTF-8 byte count: every character outside ASCII takes two to four bytes, and 50,000 characters of accented prose would already sit above 50 KB, inside the unmeasured range. Reading three or four documents of growing size between 30 and 54 KB through the connector would turn the margin into a measurement.
 
 ## Verified (create and update side)
 

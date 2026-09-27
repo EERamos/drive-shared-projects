@@ -50,8 +50,13 @@ _SOURCE_LINE = re.compile(
     r"^Source:\s+(.+?)(?:\s+\(Drive ID:\s*([^\)]+)\))?(?:\s+Extracted:.*)?\s*$",
     re.MULTILINE,
 )
-_WIKILINK = re.compile(r"\[\[([^\]]+)\]\]")
+_WIKILINK = re.compile(r"(!?)\[\[([^\]]+)\]\]")
+_ALIAS_SEPARATOR = re.compile(r"\\?\|")
+_CODE_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
+_INLINE_CODE = re.compile(r"(`+).+?\1")
 _DRIVE_ID_LINE = re.compile(r"^-\s+([^:]+):\s*(\S+)\s*$", re.MULTILINE)
+_HEADING_LINE = re.compile(r"^(#{1,6})[ \t]+(.+?)\s*$")
+_DRIVE_IDS_TITLE = DRIVE_IDS_HEADING.lstrip("#").strip()
 _ESCAPED_PUNCTUATION = re.compile(r"\\+([!-/:-@\[-`{-~])")
 _LIST_INDENT = re.compile(r"^[ \t]+(?=(?:[-*+]|\d+[.)])[ \t])")
 _END_LIST_MARKER = "<!-- end list -->"
@@ -223,6 +228,7 @@ def parse_frontmatter(text: str) -> dict[str, str]:
     This is intentionally not a general YAML parser. The project template only emits
     one `key: value` scalar per line and quotes values that may contain punctuation.
     """
+    text = text.removeprefix("\ufeff")  # a byte order mark some Windows editors add
     if not text.startswith("---\n"):
         return {}
     end = text.find("\n---\n", 4)
@@ -252,14 +258,43 @@ def source_reference(text: str) -> tuple[str, str | None] | None:
     return path, drive_id
 
 
+def _without_code(text: str) -> str:
+    """`text` without fenced code blocks and inline code, where Obsidian renders no link."""
+    kept: list[str] = []
+    fence: str | None = None
+    for line in text.split("\n"):
+        marker = _CODE_FENCE.match(line)
+        if fence is None:
+            if marker is not None:
+                fence = marker.group(1)
+            else:
+                kept.append(_INLINE_CODE.sub("", line))
+        elif (
+            marker is not None
+            and marker.group(1)[0] == fence[0]
+            and len(marker.group(1)) >= len(fence)
+        ):
+            fence = None
+    return "\n".join(kept)
+
+
+def wikilinks(text: str) -> list[tuple[str, bool]]:
+    """`(target, is_embed)` for every Obsidian wikilink outside code, in order.
+
+    The alias (`|`, or `\\|` inside a table) and the heading or block part (`#`) are dropped.
+    """
+    links: list[tuple[str, bool]] = []
+    for bang, raw in _WIKILINK.findall(_without_code(text)):
+        target = _ALIAS_SEPARATOR.split(raw, maxsplit=1)[0].split("#", 1)[0]
+        target = target.strip().replace("\\", "/")
+        if target:
+            links.append((target, bang == "!"))
+    return links
+
+
 def wikilink_targets(text: str) -> list[str]:
     """Return normalized target names from Obsidian wikilinks in `text`."""
-    targets: list[str] = []
-    for raw in _WIKILINK.findall(text):
-        target = raw.split("|", 1)[0].split("#", 1)[0].strip().replace("\\", "/")
-        if target:
-            targets.append(target)
-    return targets
+    return [target for target, _ in wikilinks(text)]
 
 
 def is_real_drive_id(value: str) -> bool:
@@ -267,9 +302,37 @@ def is_real_drive_id(value: str) -> bool:
     return bool(value.strip()) and value.strip() != ID_PLACEHOLDER
 
 
+def _drive_ids_section(text: str) -> str | None:
+    """The lines under the Drive IDs heading, or None when no heading starts with Drive IDs.
+
+    The section runs to the next heading of the same or a higher level.
+    """
+    lines = text.split("\n")
+    for start, line in enumerate(lines):
+        heading = _HEADING_LINE.match(line)
+        if heading is None or not heading.group(2).startswith(_DRIVE_IDS_TITLE):
+            continue
+        level = len(heading.group(1))
+        end = start + 1
+        while end < len(lines):
+            following = _HEADING_LINE.match(lines[end])
+            if following is not None and len(following.group(1)) <= level:
+                break
+            end += 1
+        return "\n".join(lines[start + 1 : end])
+    return None
+
+
 def instruction_drive_ids(text: str) -> dict[str, str]:
-    """Parse the simple `- label: ID` lines under the Drive IDs section."""
-    return {label.strip(): value.strip() for label, value in _DRIVE_ID_LINE.findall(text)}
+    """Parse the `- label: ID` lines of the Drive IDs section only; empty without one.
+
+    A `- label: value` line elsewhere in 00_INSTRUCTIONS, such as a local vault path under
+    a later heading, must not override a canonical ID.
+    """
+    section = _drive_ids_section(text)
+    if section is None:
+        return {}
+    return {label.strip(): value.strip() for label, value in _DRIVE_ID_LINE.findall(section)}
 
 
 def is_vault_project(root: Path) -> bool:
@@ -289,6 +352,15 @@ def relative_posix(root: Path, path: Path) -> str:
     return path.relative_to(root).as_posix()
 
 
+def is_hidden_path(relative: str) -> bool:
+    """Whether any component of a relative path starts with a dot.
+
+    Every script skips such entries, locally and in Drive listings alike: Obsidian does not
+    show them, and the `.gitkeep` files of `init_project.py` must not need index rows.
+    """
+    return any(part.startswith(".") for part in relative.replace("\\", "/").split("/"))
+
+
 def scan_files(root: Path) -> list[str]:
     """Relative POSIX paths of every non-dot file under context and sources, sorted."""
     found: list[str] = []
@@ -297,8 +369,7 @@ def scan_files(root: Path) -> list[str]:
         if not base.is_dir():
             continue
         for path in base.rglob("*"):
-            relative_parts = path.relative_to(base).parts
-            if path.is_file() and not any(part.startswith(".") for part in relative_parts):
+            if path.is_file() and not is_hidden_path(path.relative_to(base).as_posix()):
                 found.append(relative_posix(root, path))
     return sorted(found)
 
@@ -381,7 +452,7 @@ def duplicate_drive_id_paths(rows: Iterable[IndexRow]) -> list[tuple[str, list[s
 
 def missing_canonical_ids(instructions_text: str) -> list[str] | None:
     """Canonical labels whose ID is empty or TODO-ID, or None when the section is missing."""
-    if DRIVE_IDS_HEADING not in instructions_text:
+    if _drive_ids_section(instructions_text) is None:
         return None
     ids = instruction_drive_ids(instructions_text)
     return [label for label in CANONICAL_LABELS if not is_real_drive_id(ids.get(label, ""))]

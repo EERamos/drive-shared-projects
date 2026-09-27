@@ -27,7 +27,7 @@ One paragraph: type of document, who produced it, its date, and its purpose.
 
 ## Related context
 
-- Add `[[wikilinks]]` only to files inside this shared project folder.
+- Add `[[wikilinks]]` only to files inside this shared project folder. Embed (`![[file]]`) only files kept in 20_sources with an index row.
 
 ## Open questions
 

@@ -59,9 +59,11 @@ The scripts turn several workflow rules into deterministic checks:
 - `00_INSTRUCTIONS` is readable and carries a Drive IDs section;
 - the canonical project IDs in `00_INSTRUCTIONS` (project/context/source folders, INDEX and LOG) are populated and do not collide with each other or indexed files;
 - a `Source:` relationship points to a real source and, when supplied, the same Drive ID recorded in the index;
-- context files stay under the configured size cap;
+- context files stay under the configured size cap, 50,000 by default, counted in UTF-8 bytes so accented text cannot slip past it;
+- `10_context` and `20_sources` stay flat: a subfolder is reported as `NESTED_FOLDER` in both formats;
 - destructive index refreshes require an explicit `--allow-drop`;
-- vault projects require frontmatter and valid Obsidian wikilinks;
+- vault projects require frontmatter and valid Obsidian wikilinks and embeds, resolved against every project file as Obsidian resolves them;
+- a Drive ID recorded in frontmatter agrees with the file's index row, and a vault frontmatter ID is populated;
 - a local vault can be compared with a Drive listing using `check_sync.py`;
 - a Docs project is validated against the real Drive listing with `check_drive.py`: rows, IDs, renames, duplicate titles and the fixed layout.
 
@@ -76,7 +78,7 @@ project/
 └── 90_LOG.md
 ```
 
-The names are fixed because the scripts and prompt templates key on them.
+The names are fixed because the scripts and prompt templates key on them. `10_context/` and `20_sources/` hold files only, no subfolders: the Drive check lists each folder one level deep.
 
 ## Workflows
 
@@ -125,7 +127,7 @@ owner: "Ana"
 ---
 ```
 
-The stable `drive_id` lets `build_index.py` recognize a rename as the same file instead of treating it as a deletion plus a new file.
+The stable `drive_id` lets `build_index.py` recognize a rename as the same file instead of treating it as a deletion plus a new file. Because the ID then lives in two places, `check_index.py` reports `ID_MISMATCH` when the frontmatter and the index row disagree, and `build_index.py` warns before a frontmatter ID replaces a different one in the index.
 
 See `references/vault-setup.md` for sync options and the Drive-listing check.
 
@@ -149,7 +151,7 @@ The **protocol** is vendor-neutral; connector behavior is not. Do not confuse th
 | Assistant / environment | Protocol fit | Writes in place | End-to-end verification in this repo |
 | --- | --- | --- | --- |
 | Claude + Drive connector | reference implementation | no; creates and reads | read/create/listing behavior verified 2026-09-11; existing-content rewrite unsupported; Docs index validated by `check_drive.py` from saved connector results |
-| Claude Code + local md mirror | reference implementation | via the local file | supported by local scripts |
+| Claude Code + local md mirror | reference implementation | via the local file | local scripts covered by the test suite; whether a synchronizer keeps Drive IDs across renames is pending the test in `references/vault-setup.md` |
 | ChatGPT + Drive access | designed to consume the same folder | yes, verified 2026-09-17 | in a real project a document kept its Drive ID while its content changed; open-by-ID not confirmed, open-by-name works |
 | Gemini + Drive access | designed to consume the same folder | not verified | not yet verified end-to-end here; starts as verifier |
 | Grok / Copilot / local model | compatible when a Drive/files tool exists | not verified | not yet verified end-to-end here |
@@ -247,7 +249,7 @@ python ~/.claude/skills/drive-shared-projects/scripts/check_drive.py \
 
 The two content listings are mandatory and each is bound to its folder: an empty result means an empty folder, and entries that belong to another folder are a usage error, so the check can never report clean with a folder unchecked. The project listing is optional and adds the fixed-layout checks.
 
-It reports `MISSING_ROW`, `STALE_ROW`, `RENAMED_FILE`, `ID_MISMATCH`, `DUPLICATE_TITLE`, `NESTED_FOLDER`, the index-structure and canonical-ID findings of `check_index.py`, and with the project listing `MISSING_CANONICAL_FILE`, `DUPLICATE_CANONICAL_FILE` and `UNEXPECTED_FILE`. `UNEXPECTED_FILE` on `_staging/` is the expected report while an ingest order is open, and a leftover to trash otherwise. Same exit codes. Plain Markdown documents and `path,drive_id` CSV listings, one per folder, are accepted as well; duplicate paths in a CSV are kept and reported.
+It reports `MISSING_ROW`, `STALE_ROW`, `RENAMED_FILE`, `ID_MISMATCH`, `DUPLICATE_TITLE`, `NESTED_FOLDER`, the index-structure and canonical-ID findings of `check_index.py`, and with the project listing `MISSING_CANONICAL_FILE`, `DUPLICATE_CANONICAL_FILE` and `UNEXPECTED_FILE`. `UNEXPECTED_FILE` on `_staging/` is the expected report while an ingest order is open, and a leftover to trash otherwise. Same exit codes. Plain Markdown documents and `path,drive_id` CSV listings, one per folder, are accepted as well; duplicate paths in a CSV are kept and reported, and a CSV path below a subfolder is reported as `NESTED_FOLDER`.
 
 ## Refresh the index safely
 
@@ -276,7 +278,18 @@ A successful write also refreshes `Last updated`.
 
 ## Check an Obsidian/Drive mirror
 
-Export or produce a CSV listing with:
+In Claude Code with the Drive connector, list the project folder, `10_context` and `20_sources` by ID, save the results as in the Docs check above, and give `check_drive.py` the local files as the two documents:
+
+```bash
+python ~/.claude/skills/drive-shared-projects/scripts/check_drive.py \
+  --instructions ./quant-research/00_INSTRUCTIONS.md \
+  --index ./quant-research/01_INDEX.md \
+  --context-listing 10_context.json \
+  --sources-listing 20_sources.json \
+  --project-listing project.json
+```
+
+No CSV is needed, and a rename is matched by Drive ID. Without the connector, export or produce a CSV listing with:
 
 ```csv
 path,drive_id

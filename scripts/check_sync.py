@@ -2,8 +2,9 @@
 
 CSV columns: `path,drive_id`. Paths are relative to the project folder and use `/`.
 The command reports files present on only one side, populated IDs that disagree and
-IDs recorded on only one side. 00_INSTRUCTIONS.md has no local self-ID by design, so
-an empty local ID is not a finding for that path.
+IDs recorded on only one side. Paths with a component starting with a dot are skipped on
+both sides. 00_INSTRUCTIONS.md has no local self-ID by design, so an empty local ID is
+not a finding for that path.
 
 Findings:
     LOCAL_ONLY   local file is absent from the Drive listing
@@ -31,6 +32,7 @@ from common import (
     LOG_FILE,
     ExitCode,
     instruction_drive_ids,
+    is_hidden_path,
     is_real_drive_id,
     missing_project_paths,
     parse_args_or_exit,
@@ -92,7 +94,7 @@ def check_sync(
     """
     findings: list[SyncFinding] = []
     local = set(project_files(root))
-    remote = set(drive_rows)
+    remote = {rel for rel in drive_rows if not is_hidden_path(rel)}
     ids = local_drive_ids(index_text, instructions_text)
 
     for rel in sorted(local - remote):

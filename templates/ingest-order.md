@@ -6,7 +6,7 @@ Date: {{DATE}}. Drafted by: {{WRITER_OR_DRAFTER}}. Approved by: {{OWNER}}. Execu
 
 ## 1. Sources to copy
 
-| Origin | Origin Drive ID | Target under 20_sources |
+| Origin | Origin Drive ID | File name under 20_sources (no subfolders) |
 | --- | --- | --- |
 
 ## 2. Exclusions

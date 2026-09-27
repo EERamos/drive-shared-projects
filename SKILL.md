@@ -13,7 +13,7 @@ This is not an agent framework. It provides the context, identity, evidence and 
 
 - `00_INSTRUCTIONS`: role, tone, rules, mode, format and Drive IDs. It intentionally does not store its own ID.
 - `01_INDEX`: one row per file with path, Drive ID, summary, read rule and owner.
-- `10_context/`: compact working knowledge. One topic per file, under 50,000 characters.
+- `10_context/`: compact working knowledge. One topic per file, under 50,000 characters. The cap is checked on the UTF-8 byte count, so accented or non-Latin text reaches it with fewer characters.
 - `20_sources/`: originals as received.
 - `90_LOG`: append-only decisions and lessons.
 
@@ -42,6 +42,7 @@ Creating a document that does not exist yet is not constrained: the drafter crea
 - Fixed names/index headers/`Source:`/`TODO-ID` remain in English because scripts key on them. Project prose uses the user's language.
 - Every clean project has one populated unique Drive ID per index row.
 - In Docs format the File cell is `10_context/<Drive title>` or `20_sources/<file name>`; a Google Doc has no extension. Titles must be unique inside each folder because the index addresses files by path.
+- `10_context` and `20_sources` have no subfolders, in either format. The Drive check lists each folder one level deep, so a subfolder would hide its files; `check_drive.py` and `check_index.py` report one as `NESTED_FOLDER`.
 - A `Source:` relationship must resolve to a real file under `20_sources`; if it declares a Drive ID, it must match the source's index row.
 - `build_index.py --write` must not remove stale rows unless the user reviewed them and `--allow-drop` is supplied.
 - Every change to an existing project document travels as a change order (Workflow 7); the party that drafts it does not apply it. Creating a new document needs no order; indexing it does.
@@ -77,7 +78,7 @@ Trigger: the user wants a new shared project.
 5. Do **not** add the ID of `00_INSTRUCTIONS` inside itself. The project instruction block already carries that ID; removing the self-reference avoids a circular user-paste step.
 6. Fill `templates/project-instruction.md` (Claude, drafter by default) and one block from `templates/roles/` per other assistant that takes part, with the IDs of `00_INSTRUCTIONS`, `01_INDEX`, `90_LOG` and the folder path, and give them to the user.
 7. Apply sharing rules from `references/modes.md`.
-8. If vault mode, use `templates/source-extract-vault.md`, confirm the sync method, keep `.obsidian/` outside the shared project folder and run maintenance after IDs are populated.
+8. If vault mode, use `templates/source-extract-vault.md`, confirm the sync method, keep `.obsidian/` outside the shared project folder, take the IDs from Drive after the first sync (`references/vault-setup.md`) and run maintenance after IDs are populated.
 
 ## Workflow 2: Session start
 
@@ -85,7 +86,7 @@ Trigger: the user wants a new shared project.
 2. Read `01_INDEX` by ID.
 3. Load no other file unless the index says it is relevant/always-read or the user asks.
 4. Prefer `10_context`; open `20_sources` only for exact figures or missing detail.
-5. Respect the 50,000-character context-file cap. If metadata shows a file exceeds it, propose a split instead of silently chunk-reading it.
+5. Respect the 50,000-character context-file cap, counted in UTF-8 bytes. If metadata shows a file exceeds it, propose a split instead of silently chunk-reading it.
 
 ## Workflow 3: Ingest a source
 
@@ -95,7 +96,7 @@ Trigger: the user wants a new shared project.
    - vault project: `templates/source-extract-vault.md` with frontmatter `title`, `source`, `drive_id`, `updated`, `owner`.
 3. Propose the extract plus index rows for source and extract. Wait for confirmation.
 4. Create the extract in `10_context`.
-5. Fill its actual Drive identity where the format allows it. In a vault/local mirror, frontmatter `drive_id` is the stable identity used across renames. If the sync has not assigned an ID yet, leave `TODO-ID` and treat maintenance as failing until it is populated.
+5. Fill its actual Drive identity where the format allows it. In a vault/local mirror, frontmatter `drive_id` is the stable identity used across renames. If the sync has not assigned an ID yet, leave `TODO-ID` and treat maintenance as failing until it is populated: in a vault, `check_index.py` reports a frontmatter `TODO-ID` as `MISSING_DRIVE_ID`.
 6. Update `01_INDEX` through a change order (Workflow 7). Refresh `Last updated`.
 7. Re-read/validate. `Source:` must resolve to the actual source and the source Drive ID must match the index. In Docs format, in Claude Code, run the Docs check of Workflow 5 so the new row is verified against the real IDs.
 
@@ -138,7 +139,7 @@ In Claude Code:
 
 4. Propose the index edits the findings call for, the owner applies them, run the check again.
 
-It reports `MISSING_ROW`, `STALE_ROW`, `RENAMED_FILE` (same Drive ID, new title), `ID_MISMATCH`, `DUPLICATE_TITLE`, `NESTED_FOLDER`, `MISSING_DRIVE_ID`, `DUPLICATE_DRIVE_ID`, `DUPLICATE_ROW`, the canonical-ID findings of `00_INSTRUCTIONS` and, with a project listing, `MISSING_CANONICAL_FILE`, `DUPLICATE_CANONICAL_FILE` (both `01_INDEX` and `01_INDEX.md` exist) and `UNEXPECTED_FILE`. Exit `0` means clean, `1` findings, `2` usage error (malformed input, a folder without a recorded ID, or entries listed under the wrong folder). Markdown documents and `path,drive_id` CSV listings, one per folder, are accepted too.
+It reports `MISSING_ROW`, `STALE_ROW`, `RENAMED_FILE` (same Drive ID, new title), `ID_MISMATCH`, `DUPLICATE_TITLE`, `NESTED_FOLDER`, `MISSING_DRIVE_ID`, `DUPLICATE_DRIVE_ID`, `DUPLICATE_ROW`, the canonical-ID findings of `00_INSTRUCTIONS` and, with a project listing, `MISSING_CANONICAL_FILE`, `DUPLICATE_CANONICAL_FILE` (both `01_INDEX` and `01_INDEX.md` exist) and `UNEXPECTED_FILE`. Exit `0` means clean, `1` findings, `2` usage error (malformed input, a folder without a recorded ID, or entries listed under the wrong folder). Markdown documents and `path,drive_id` CSV listings, one per folder, are accepted too. A CSV path below a subfolder is reported as `NESTED_FOLDER` for that subfolder, as a JSON listing would show it.
 
 `UNEXPECTED_FILE` on `_staging/` is expected only while an ingest order (Workflow 8) is open; at any other time the folder is a leftover to trash. The finding's suggested remedy ("move it into 20_sources or remove it") does not apply to `_staging/`: never move it into the canonical tree; trash it or let the open order commit it by moving the verified files.
 
@@ -158,9 +159,11 @@ The validator checks:
 - missing and duplicate Drive IDs in index rows;
 - a missing or unreadable Drive IDs section in `00_INSTRUCTIONS`;
 - missing/colliding canonical project IDs recorded in `00_INSTRUCTIONS`;
-- unreadable/oversized context files;
+- unreadable context files, and context files over the size cap counted in UTF-8 bytes;
+- a folder inside `10_context` or `20_sources` (`NESTED_FOLDER`), the same layout rule the Docs check applies;
 - the explicit `Source:` reference of an extract: the path must resolve under `20_sources` and a declared Drive ID must match the index row. There is no filename-based topic heuristic; the `Source:` line is the only extract-to-source relationship;
-- in vault mode, required frontmatter and broken `[[wikilinks]]`.
+- a frontmatter `drive_id` that disagrees with the file's index row (`ID_MISMATCH`), in any md project, because `build_index.py` lets the frontmatter win;
+- in vault mode, required frontmatter, a frontmatter `drive_id` still at `TODO-ID` (`MISSING_DRIVE_ID`) and broken `[[wikilinks]]` or `![[embeds]]`, resolved as Obsidian does: any project file, by path or name, ignoring case, never inside code.
 
 Exit `0` means clean, `1` means findings, `2` means usage/setup error.
 
@@ -184,11 +187,26 @@ If rows would disappear, the write is refused. After the user reviews the stale 
 python <skill>/scripts/build_index.py --root <project> --write --allow-drop
 ```
 
-A successful write refreshes `Last updated`. Vault frontmatter can supply `drive_id`, `title` and `owner`; a unique stable ID lets a renamed file inherit its previous human-maintained row fields.
+A successful write refreshes `Last updated`. Vault frontmatter can supply `drive_id`, `title` and `owner`; a unique stable ID lets a renamed file inherit its previous human-maintained row fields. A frontmatter `drive_id` wins over a different ID already in the row; the preview and the write name every such replacement on stderr, so check it before writing.
 
 ## Workflow 6: Vault sync check
 
 Trigger: an Obsidian/local project is mirrored to Drive and the user wants to verify publication state.
+
+In Claude Code with the Drive connector:
+
+1. List the project folder, `10_context` and `20_sources` by their recorded IDs with `parentId = '<folder ID>'` and save each result verbatim, as in Workflow 5.
+2. Run `check_drive.py` with the local files as the two documents:
+
+   ```bash
+   python <skill>/scripts/check_drive.py --instructions <project>/00_INSTRUCTIONS.md \
+     --index <project>/01_INDEX.md --context-listing 10_context.json \
+     --sources-listing 20_sources.json --project-listing project.json
+   ```
+
+   No CSV is needed, and renames are matched by Drive ID: `RENAMED_FILE` means the index still has the old name, so run `build_index.py --write`; `ID_MISMATCH` means the sync re-created the file under a new ID.
+
+Without the connector:
 
 1. Obtain/export a Drive listing CSV with columns `path,drive_id` for the project files.
 2. Run:
@@ -197,10 +215,13 @@ Trigger: an Obsidian/local project is mirrored to Drive and the user wants to ve
    python <skill>/scripts/check_sync.py --root <project> --drive-csv <listing.csv>
    ```
 
-3. Resolve:
-   - `LOCAL_ONLY`: publish/sync the local file;
-   - `DRIVE_ONLY`: decide whether it is an intentional remote addition before importing/deleting anything. A `_staging/` entry while an ingest order is open is an intentional remote addition.
-   - `ID_MISMATCH`: stop and reconcile identity before continuing.
+Resolve:
+
+- `LOCAL_ONLY`, or `STALE_ROW` in the Drive check: publish/sync the local file;
+- `DRIVE_ONLY`, or `MISSING_ROW` in the Drive check: decide whether it is an intentional remote addition before importing/deleting anything. A `_staging/` entry while an ingest order is open is an intentional remote addition.
+- `ID_MISMATCH`: stop and reconcile identity before continuing.
+
+In a vault the synchronizer creates the Drive folders, so the canonical IDs come from Drive after the first sync; `references/vault-setup.md` has the procedure and the table of synchronizers verified to keep Drive IDs across renames.
 
 The vault is authoritative; Drive is the mirror. Avoid simultaneous two-way edits unless the chosen sync mechanism has a deliberate conflict strategy.
 
@@ -221,7 +242,7 @@ Rules: one open order per document, because there is no conflict detection and t
 
 Trigger: an ingest with more than one source, or any ingest run by a writer assistant. A single source with a human paste stays in Workflow 3.
 
-1. Manifest, with no writes, from `templates/ingest-order.md`: sources to copy with origin, Drive ID and target subfolder; exclusions with the reason (personal data of a natural person is excluded unless the owner says otherwise); extracts to create with topic, file name, sources and who synthesises; the exact index rows and the exact log entry. The owner approves it.
+1. Manifest, with no writes, from `templates/ingest-order.md`: sources to copy with origin, Drive ID and file name under `20_sources`, which has no subfolders; exclusions with the reason (personal data of a natural person is excluded unless the owner says otherwise); extracts to create with topic, file name, sources and who synthesises; the exact index rows and the exact log entry. The owner approves it.
 2. Execution into `_staging/`, a transient folder at the project root, never into `10_context` or `20_sources`. The writer assistant creates the copies and extracts there when the project has one; otherwise the drafter creates them and the owner checks the staged files against the manifest before the commit. Before copying, list the target and skip anything already present with the same name; the same manifest run twice creates nothing.
 3. Batch verification on the staged files by the drafter. Mechanical: every planned file present and nothing else; every extract with a `Source:` block that resolves to the planned sources and certainty tags on factual bullets; no staged original is personal data. Semantic: a sample of extracts checked against their sources for time windows, dates, units and claims presented as facts.
 4. Commit: the drafter moves the verified files into `20_sources` and `10_context` (the move keeps each Drive ID); then the writer applies the index rows in one write and the log entry in one write, or a person pastes them, each read back before the next.

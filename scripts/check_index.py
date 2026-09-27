@@ -4,15 +4,17 @@ Findings:
     MISSING_ROW             file exists but has no index row
     STALE_ROW               row exists but the file is missing
     DUPLICATE_ROW           same file appears more than once in the index
-    MISSING_DRIVE_ID        index row still has TODO-ID or an empty ID
+    MISSING_DRIVE_ID        index row has TODO-ID or no ID, or vault frontmatter has TODO-ID
     DUPLICATE_DRIVE_ID      one populated Drive ID is assigned to multiple rows
+    NESTED_FOLDER           a folder inside 10_context or 20_sources; both stay flat
     MISSING_PROJECT_ID       canonical project ID absent/TODO-ID, or no Drive IDs section
     DUPLICATE_PROJECT_ID     a canonical project ID collides with another one or a row
     UNREADABLE              context file or 00_INSTRUCTIONS is not readable UTF-8 text
-    TOO_LARGE               context file exceeds the configured character cap
+    TOO_LARGE               context file exceeds the configured cap in UTF-8 bytes
     INVALID_SOURCE_REFERENCE Source: path or Drive ID does not match the project
+    ID_MISMATCH             a frontmatter drive_id and the file's index row disagree
     MISSING_FRONTMATTER     vault context file lacks required metadata
-    BROKEN_LINK             vault wikilink target does not exist
+    BROKEN_LINK             vault wikilink or embed target is not a file of the project
 
 Exit codes: 0 clean, 1 findings, 2 usage error. Exit 2 covers a missing project path
 (00_INSTRUCTIONS.md, 01_INDEX.md, 90_LOG.md, 10_context or 20_sources) and an index
@@ -26,21 +28,26 @@ import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum, auto
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from common import (
     CONTEXT_DIR,
     DEFAULT_MAX_CHARS,
     FRONTMATTER_REQUIRED,
+    ID_PLACEHOLDER,
     INDEX_FILE,
     INSTRUCTIONS_FILE,
+    REQUIRED_FILES,
+    SCANNED_DIRS,
     SOURCES_DIR,
+    TEXT_SUFFIXES,
     ExitCode,
     IndexRow,
     canonical_id_collisions,
     duplicate_drive_id_paths,
     duplicate_row_counts,
     first_rows_by_file,
+    is_hidden_path,
     is_real_drive_id,
     is_vault_project,
     missing_canonical_ids,
@@ -50,9 +57,10 @@ from common import (
     parse_index,
     read_index_or_error,
     read_text,
+    relative_posix,
     scan_files,
     source_reference,
-    wikilink_targets,
+    wikilinks,
 )
 
 EXIT_OK = ExitCode.OK
@@ -66,11 +74,13 @@ class FindingKind(Enum):
     DUPLICATE_ROW = auto()
     MISSING_DRIVE_ID = auto()
     DUPLICATE_DRIVE_ID = auto()
+    NESTED_FOLDER = auto()
     MISSING_PROJECT_ID = auto()
     DUPLICATE_PROJECT_ID = auto()
     UNREADABLE = auto()
     TOO_LARGE = auto()
     INVALID_SOURCE_REFERENCE = auto()
+    ID_MISMATCH = auto()
     MISSING_FRONTMATTER = auto()
     BROKEN_LINK = auto()
 
@@ -89,21 +99,43 @@ def _context_files(files: Sequence[str]) -> list[str]:
     return [f for f in files if f.startswith(CONTEXT_DIR + "/")]
 
 
-def _markdown_targets(root: Path, files: Sequence[str]) -> set[str]:
+def _nested_folders(root: Path) -> list[str]:
+    """Folders directly inside 10_context and 20_sources; dot folders are skipped like dotfiles."""
+    nested: list[str] = []
+    for sub in SCANNED_DIRS:
+        base = root / sub
+        if base.is_dir():
+            nested.extend(
+                relative_posix(root, path)
+                for path in base.iterdir()
+                if path.is_dir() and not is_hidden_path(path.name)
+            )
+    return sorted(nested)
+
+
+def _link_targets(root: Path, files: Sequence[str]) -> set[str]:
+    """Lowercased names a wikilink may use for a project file, the way Obsidian resolves them.
+
+    Every file under 10_context and 20_sources and the three root files resolve by full
+    path or by file name with its extension; a Markdown note also resolves without `.md`.
+    """
+    top = [name for name in REQUIRED_FILES if (root / name).is_file()]
     targets: set[str] = set()
-    for rel in files:
-        path = Path(rel)
-        if path.suffix.lower() != ".md":
-            continue
-        without_suffix = path.with_suffix("").as_posix()
-        targets.add(without_suffix)
-        targets.add(path.stem)
-    for top in ("00_INSTRUCTIONS.md", "01_INDEX.md", "90_LOG.md"):
-        if (root / top).is_file():
-            path = Path(top)
-            targets.add(path.with_suffix("").as_posix())
-            targets.add(path.stem)
+    for rel in [*files, *top]:
+        path = PurePosixPath(rel.lower())
+        targets.update((path.as_posix(), path.name))
+        if path.suffix == ".md":
+            targets.update((path.with_suffix("").as_posix(), path.stem))
     return targets
+
+
+def _broken_link_detail(target: str, embed: bool) -> str:
+    if embed:
+        return (
+            f"embed target not found: {target}; keep embedded files in the project, "
+            "originals in 20_sources with an index row"
+        )
+    return f"wikilink target not found: {target}"
 
 
 def _source_reference_findings(
@@ -150,6 +182,29 @@ def _source_reference_findings(
     return []
 
 
+def _frontmatter_drive_id(text: str) -> str:
+    return parse_frontmatter(text).get("drive_id", "").strip()
+
+
+def _identity_findings(rel: str, frontmatter_id: str, row: IndexRow | None) -> list[Finding]:
+    """ID_MISMATCH when the frontmatter and the index row both carry an ID and they differ.
+
+    build_index lets a frontmatter ID replace the row's ID in any project, so the check
+    covers every text file it reads, vault or not.
+    """
+    if row is None or not is_real_drive_id(frontmatter_id) or not is_real_drive_id(row.drive_id):
+        return []
+    if frontmatter_id == row.drive_id:
+        return []
+    return [
+        Finding(
+            FindingKind.ID_MISMATCH,
+            rel,
+            f"frontmatter drive_id {frontmatter_id} != index ID {row.drive_id}",
+        )
+    ]
+
+
 def check(root: Path, max_chars: int = DEFAULT_MAX_CHARS) -> list[Finding]:
     """Return every inconsistency between the index and the folder, in stable order."""
     findings: list[Finding] = []
@@ -181,6 +236,16 @@ def check(root: Path, max_chars: int = DEFAULT_MAX_CHARS) -> list[Finding]:
                 FindingKind.DUPLICATE_DRIVE_ID,
                 unique_paths[0],
                 f"Drive ID {drive_id} also used by " + ", ".join(unique_paths[1:]),
+            )
+        )
+
+    for rel in _nested_folders(root):
+        folder = rel.split("/", 1)[0]
+        findings.append(
+            Finding(
+                FindingKind.NESTED_FOLDER,
+                rel,
+                f"folder inside {folder}; keep it flat, the Drive check does not look inside it",
             )
         )
 
@@ -221,7 +286,7 @@ def check(root: Path, max_chars: int = DEFAULT_MAX_CHARS) -> list[Finding]:
                 )
 
     vault = is_vault_project(root)
-    markdown_targets = _markdown_targets(root, files) if vault else set()
+    link_targets = _link_targets(root, files) if vault else set()
 
     for rel in _context_files(files):
         try:
@@ -229,12 +294,23 @@ def check(root: Path, max_chars: int = DEFAULT_MAX_CHARS) -> list[Finding]:
         except (UnicodeDecodeError, OSError) as exc:
             findings.append(Finding(FindingKind.UNREADABLE, rel, f"{type(exc).__name__}: {exc}"))
             continue
-        if len(text) > max_chars:
+        # The connector limit was observed in bytes. A UTF-8 byte count is never below the
+        # character count, so capping the bytes caps the characters too.
+        size = len(text.encode("utf-8"))
+        if size > max_chars:
             findings.append(
-                Finding(FindingKind.TOO_LARGE, rel, f"{len(text)} chars, limit {max_chars}")
+                Finding(
+                    FindingKind.TOO_LARGE,
+                    rel,
+                    f"{len(text)} chars, {size} UTF-8 bytes, limit {max_chars}",
+                )
             )
 
         findings.extend(_source_reference_findings(rel, text, on_disk, rows_by_file))
+        if Path(rel).suffix.lower() in TEXT_SUFFIXES:
+            findings.extend(
+                _identity_findings(rel, _frontmatter_drive_id(text), rows_by_file.get(rel))
+            )
 
         if vault and Path(rel).suffix.lower() == ".md":
             metadata = parse_frontmatter(text)
@@ -249,26 +325,42 @@ def check(root: Path, max_chars: int = DEFAULT_MAX_CHARS) -> list[Finding]:
                         "missing required key(s): " + ", ".join(missing_keys),
                     )
                 )
-            for target in wikilink_targets(text):
-                normalized = target[:-3] if target.lower().endswith(".md") else target
-                if (
-                    normalized not in markdown_targets
-                    and Path(normalized).name not in markdown_targets
-                ):
-                    findings.append(
-                        Finding(
-                            FindingKind.BROKEN_LINK,
-                            rel,
-                            f"wikilink target not found: {target}",
-                        )
+            if metadata.get("drive_id", "").strip() == ID_PLACEHOLDER:
+                findings.append(
+                    Finding(
+                        FindingKind.MISSING_DRIVE_ID,
+                        rel,
+                        f"frontmatter drive_id is {ID_PLACEHOLDER}",
                     )
+                )
+            for target, embed in wikilinks(text):
+                wanted = PurePosixPath(target.lower())
+                if wanted.as_posix() in link_targets or wanted.name in link_targets:
+                    continue
+                findings.append(
+                    Finding(FindingKind.BROKEN_LINK, rel, _broken_link_detail(target, embed))
+                )
+
+    for rel in files:
+        if not rel.startswith(SOURCES_DIR + "/") or Path(rel).suffix.lower() not in TEXT_SUFFIXES:
+            continue
+        try:
+            text = read_text(root / rel)
+        except (UnicodeDecodeError, OSError):
+            continue  # build_index reads no identity from it either
+        findings.extend(_identity_findings(rel, _frontmatter_drive_id(text), rows_by_file.get(rel)))
     return findings
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Validate 01_INDEX against the folder.")
     parser.add_argument("--root", required=True, type=Path, help="Project folder.")
-    parser.add_argument("--max-chars", type=int, default=DEFAULT_MAX_CHARS)
+    parser.add_argument(
+        "--max-chars",
+        type=int,
+        default=DEFAULT_MAX_CHARS,
+        help="Cap for every context file, applied to its UTF-8 byte count.",
+    )
     return parser
 
 

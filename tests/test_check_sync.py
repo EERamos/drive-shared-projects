@@ -169,3 +169,18 @@ def test_main_non_utf8_instructions_is_usage_error(
     err = capsys.readouterr().err
     assert "is not readable as UTF-8 text" in err
     assert INSTRUCTIONS_FILE in err
+
+
+def test_sync_skips_dot_entries_in_the_drive_listing(tmp_path: Path) -> None:
+    root = _project(tmp_path)
+    (root / CONTEXT_DIR / ".gitkeep").write_text("", encoding="utf-8")
+    remote = {
+        "00_INSTRUCTIONS.md": "instructions-id",
+        "01_INDEX.md": "index-id",
+        "10_context/.gitkeep": "keep-id",
+        "10_context/a.md": "a-id",
+        "20_sources/.gitkeep": "keep-id-2",
+        ".obsidian/workspace.json": "ws-id",
+        "90_LOG.md": "log-id",
+    }
+    assert check_sync(root, remote, *_texts(root)) == []

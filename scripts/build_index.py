@@ -7,8 +7,10 @@ Usage:
 
 Rows already in the index keep their human-maintained fields. Vault frontmatter can
 supply a stable Drive ID, title and owner, which also lets a renamed file inherit the
-old row by Drive ID. A write that would remove stale rows is refused unless
-`--allow-drop` is present. `Last updated` is refreshed on every successful write.
+old row by Drive ID. A frontmatter ID still wins over a different ID in the row, but
+the preview and the write say so on stderr. A write that would remove stale rows is
+refused unless `--allow-drop` is present. `Last updated` is refreshed on every
+successful write.
 
 Exit codes: 0 done, 1 refused, 2 usage error. Exit 2 covers a missing project path
 (00_INSTRUCTIONS.md, 01_INDEX.md, 90_LOG.md, 10_context or 20_sources) and an index
@@ -124,6 +126,30 @@ def merge(existing: Sequence[IndexRow], scanned: Sequence[IndexRow]) -> list[Ind
     return merged
 
 
+def id_conflicts(
+    existing: Sequence[IndexRow], scanned: Sequence[IndexRow]
+) -> list[tuple[str, str, str]]:
+    """`(path, index_id, frontmatter_id)` where `merge` replaces a populated row ID.
+
+    A rename matched by Drive ID carries the same ID by construction, so only rows
+    matched by path can conflict.
+    """
+    by_file: dict[str, IndexRow] = {}
+    for row in existing:
+        by_file.setdefault(row.file, row)
+    conflicts: list[tuple[str, str, str]] = []
+    for fresh in scanned:
+        old = by_file.get(fresh.file)
+        if (
+            old is not None
+            and is_real_drive_id(fresh.drive_id)
+            and is_real_drive_id(old.drive_id)
+            and fresh.drive_id != old.drive_id
+        ):
+            conflicts.append((fresh.file, old.drive_id, fresh.drive_id))
+    return conflicts
+
+
 def dropped_rows(existing: Sequence[IndexRow], scanned: Sequence[IndexRow]) -> list[str]:
     """Rows no longer represented by path or by a stable Drive ID."""
     scanned_files = {row.file for row in scanned}
@@ -170,6 +196,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"warning: duplicate index rows for {file} (kept the first)", file=sys.stderr)
     scanned = scan(root)
     dropped = dropped_rows(existing, scanned)
+    conflicts = id_conflicts(existing, scanned)
     table = render_index_table(merge(existing, scanned))
     if args.write:
         if dropped and not args.allow_drop:
@@ -184,6 +211,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                 f"removed {len(dropped)} stale row(s): {', '.join(dropped)}",
                 file=sys.stderr,
             )
+        for file, index_id, frontmatter_id in conflicts:
+            print(
+                f"warning: {file}: frontmatter drive_id {frontmatter_id} "
+                f"replaced index ID {index_id}",
+                file=sys.stderr,
+            )
         refreshed = refresh_last_updated(index_text, dt.date.today().isoformat())
         write_text(index_path, replace_index_table(refreshed, table))
         print(f"updated {index_path}")
@@ -192,6 +225,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         if dropped:
             print(
                 "would remove stale row(s) on write: " + ", ".join(dropped),
+                file=sys.stderr,
+            )
+        for file, index_id, frontmatter_id in conflicts:
+            print(
+                f"warning: {file}: frontmatter drive_id {frontmatter_id} "
+                f"would replace index ID {index_id} on write",
                 file=sys.stderr,
             )
     return EXIT_OK

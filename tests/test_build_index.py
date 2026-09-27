@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from build_index import EXIT_OK, EXIT_USAGE, duplicate_files, main, merge, scan
+from build_index import EXIT_OK, EXIT_USAGE, duplicate_files, id_conflicts, main, merge, scan
 from common import (
     CONTEXT_DIR,
     ID_PLACEHOLDER,
@@ -249,3 +249,60 @@ def test_main_warns_about_duplicate_rows(tree: Path, capsys: pytest.CaptureFixtu
         IndexRow("10_context/pricing.md", "id1", "First", "always", "me"),
         IndexRow("20_sources/contract.pdf", "id3", "Contract", "detail", "me"),
     ]
+
+
+def test_id_conflicts_lists_rows_whose_frontmatter_id_would_replace_theirs() -> None:
+    existing = [
+        IndexRow("10_context/a.md", "X1", "A", "always", "me"),
+        IndexRow("10_context/b.md", ID_PLACEHOLDER, "B", "always", "me"),
+        IndexRow("10_context/old.md", "R1", "Old", "always", "me"),
+    ]
+    scanned = [
+        IndexRow("10_context/a.md", "F1", "A", "", ""),
+        IndexRow("10_context/b.md", "F2", "B", "", ""),
+        IndexRow("10_context/new.md", "R1", "New", "", ""),
+    ]
+    assert id_conflicts(existing, scanned) == [("10_context/a.md", "X1", "F1")]
+
+
+def _frontmatter_tree(tree: Path) -> Path:
+    (tree / CONTEXT_DIR / "pricing.md").write_text(
+        '---\ndrive_id: "F1"\n---\n# Pricing model\n', encoding="utf-8"
+    )
+    (tree / INDEX_FILE).write_text(
+        "# Index\n\n## Files\n\n"
+        + render_index_table(
+            [
+                IndexRow("10_context/pricing.md", "X1", "Pricing", "always", "me"),
+                IndexRow("20_sources/contract.pdf", "C1", "Contract", "detail", "me"),
+            ]
+        ),
+        encoding="utf-8",
+    )
+    return tree
+
+
+def test_preview_warns_that_the_frontmatter_id_would_replace_the_row_id(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _frontmatter_tree(tree)
+    before = (root / INDEX_FILE).read_text(encoding="utf-8")
+    assert main(["--root", str(root)]) == EXIT_OK
+    assert (
+        "warning: 10_context/pricing.md: frontmatter drive_id F1 would replace index ID X1"
+        in capsys.readouterr().err
+    )
+    assert (root / INDEX_FILE).read_text(encoding="utf-8") == before
+
+
+def test_write_keeps_the_frontmatter_id_and_says_what_it_replaced(
+    tree: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _frontmatter_tree(tree)
+    assert main(["--root", str(root), "--write"]) == EXIT_OK
+    assert (
+        "warning: 10_context/pricing.md: frontmatter drive_id F1 replaced index ID X1"
+        in capsys.readouterr().err
+    )
+    rows = parse_index((root / INDEX_FILE).read_text(encoding="utf-8"))
+    assert rows[0] == IndexRow("10_context/pricing.md", "F1", "Pricing", "always", "me")
