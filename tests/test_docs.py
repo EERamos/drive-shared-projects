@@ -45,3 +45,39 @@ def test_readme_changelog_and_version_are_0_3_0() -> None:
     assert "## Assistant roles, change orders and ingest orders" in readme
     assert "## [0.3.0]" in _read("CHANGELOG.md")
     assert 'version = "0.3.0"' in _read("pyproject.toml")
+
+
+def test_no_document_asks_for_a_subfolder_under_20_sources() -> None:
+    for rel in ("SKILL.md", "references/assistant-roles.md", "templates/ingest-order.md"):
+        text = _read(rel)
+        assert "target subfolder" not in text
+        assert "Target under 20_sources" not in text
+    assert "no subfolders" in _read("templates/00_INSTRUCTIONS.md")
+
+
+def test_the_size_cap_prose_names_the_byte_count() -> None:
+    for rel in (
+        "SKILL.md",
+        "README.md",
+        "references/drive-connector-behavior.md",
+        "templates/00_INSTRUCTIONS.md",
+    ):
+        assert "UTF-8 bytes" in _read(rel) or "UTF-8 byte count" in _read(rel)
+
+
+def test_vault_setup_covers_renames_settings_and_synchronizers() -> None:
+    text = _read("references/vault-setup.md")
+    for heading in (
+        "## Obsidian settings",
+        "## Renames",
+        "## Drive IDs of a vault project",
+        "## Verified synchronizers",
+    ):
+        assert heading in text
+    assert "rclone sync --track-renames" in text
+
+
+def test_workflow_6_offers_the_drive_check_and_the_csv() -> None:
+    workflow = _read("SKILL.md").split("## Workflow 6")[1].split("## Workflow 7")[0]
+    assert "check_drive.py" in workflow
+    assert "check_sync.py" in workflow
