@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows Keep
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-27
+
 ### Added
 
 - `NESTED_FOLDER` in `check_index.py`: a folder directly inside `10_context` or `20_sources` is a finding, as it already was in `check_drive.py`, so md format stops accepting what Docs format rejects. Dot folders are skipped like dotfiles. Files below the folder are still scanned, so existing rows do not turn stale.
