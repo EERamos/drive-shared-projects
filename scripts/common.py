@@ -50,7 +50,10 @@ _SOURCE_LINE = re.compile(
     r"^Source:\s+(.+?)(?:\s+\(Drive ID:\s*([^\)]+)\))?(?:\s+Extracted:.*)?\s*$",
     re.MULTILINE,
 )
-_WIKILINK = re.compile(r"\[\[([^\]]+)\]\]")
+_WIKILINK = re.compile(r"(!?)\[\[([^\]]+)\]\]")
+_ALIAS_SEPARATOR = re.compile(r"\\?\|")
+_CODE_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
+_INLINE_CODE = re.compile(r"(`+).+?\1")
 _DRIVE_ID_LINE = re.compile(r"^-\s+([^:]+):\s*(\S+)\s*$", re.MULTILINE)
 _HEADING_LINE = re.compile(r"^(#{1,6})[ \t]+(.+?)\s*$")
 _DRIVE_IDS_TITLE = DRIVE_IDS_HEADING.lstrip("#").strip()
@@ -254,14 +257,43 @@ def source_reference(text: str) -> tuple[str, str | None] | None:
     return path, drive_id
 
 
+def _without_code(text: str) -> str:
+    """`text` without fenced code blocks and inline code, where Obsidian renders no link."""
+    kept: list[str] = []
+    fence: str | None = None
+    for line in text.split("\n"):
+        marker = _CODE_FENCE.match(line)
+        if fence is None:
+            if marker is not None:
+                fence = marker.group(1)
+            else:
+                kept.append(_INLINE_CODE.sub("", line))
+        elif (
+            marker is not None
+            and marker.group(1)[0] == fence[0]
+            and len(marker.group(1)) >= len(fence)
+        ):
+            fence = None
+    return "\n".join(kept)
+
+
+def wikilinks(text: str) -> list[tuple[str, bool]]:
+    """`(target, is_embed)` for every Obsidian wikilink outside code, in order.
+
+    The alias (`|`, or `\\|` inside a table) and the heading or block part (`#`) are dropped.
+    """
+    links: list[tuple[str, bool]] = []
+    for bang, raw in _WIKILINK.findall(_without_code(text)):
+        target = _ALIAS_SEPARATOR.split(raw, maxsplit=1)[0].split("#", 1)[0]
+        target = target.strip().replace("\\", "/")
+        if target:
+            links.append((target, bang == "!"))
+    return links
+
+
 def wikilink_targets(text: str) -> list[str]:
     """Return normalized target names from Obsidian wikilinks in `text`."""
-    targets: list[str] = []
-    for raw in _WIKILINK.findall(text):
-        target = raw.split("|", 1)[0].split("#", 1)[0].strip().replace("\\", "/")
-        if target:
-            targets.append(target)
-    return targets
+    return [target for target, _ in wikilinks(text)]
 
 
 def is_real_drive_id(value: str) -> bool:

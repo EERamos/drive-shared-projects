@@ -14,7 +14,7 @@ Findings:
     INVALID_SOURCE_REFERENCE Source: path or Drive ID does not match the project
     ID_MISMATCH             a frontmatter drive_id and the file's index row disagree
     MISSING_FRONTMATTER     vault context file lacks required metadata
-    BROKEN_LINK             vault wikilink target does not exist
+    BROKEN_LINK             vault wikilink or embed target is not a file of the project
 
 Exit codes: 0 clean, 1 findings, 2 usage error. Exit 2 covers a missing project path
 (00_INSTRUCTIONS.md, 01_INDEX.md, 90_LOG.md, 10_context or 20_sources) and an index
@@ -28,7 +28,7 @@ import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum, auto
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from common import (
     CONTEXT_DIR,
@@ -37,6 +37,7 @@ from common import (
     ID_PLACEHOLDER,
     INDEX_FILE,
     INSTRUCTIONS_FILE,
+    REQUIRED_FILES,
     SCANNED_DIRS,
     SOURCES_DIR,
     TEXT_SUFFIXES,
@@ -59,7 +60,7 @@ from common import (
     relative_posix,
     scan_files,
     source_reference,
-    wikilink_targets,
+    wikilinks,
 )
 
 EXIT_OK = ExitCode.OK
@@ -112,21 +113,29 @@ def _nested_folders(root: Path) -> list[str]:
     return sorted(nested)
 
 
-def _markdown_targets(root: Path, files: Sequence[str]) -> set[str]:
+def _link_targets(root: Path, files: Sequence[str]) -> set[str]:
+    """Lowercased names a wikilink may use for a project file, the way Obsidian resolves them.
+
+    Every file under 10_context and 20_sources and the three root files resolve by full
+    path or by file name with its extension; a Markdown note also resolves without `.md`.
+    """
+    top = [name for name in REQUIRED_FILES if (root / name).is_file()]
     targets: set[str] = set()
-    for rel in files:
-        path = Path(rel)
-        if path.suffix.lower() != ".md":
-            continue
-        without_suffix = path.with_suffix("").as_posix()
-        targets.add(without_suffix)
-        targets.add(path.stem)
-    for top in ("00_INSTRUCTIONS.md", "01_INDEX.md", "90_LOG.md"):
-        if (root / top).is_file():
-            path = Path(top)
-            targets.add(path.with_suffix("").as_posix())
-            targets.add(path.stem)
+    for rel in [*files, *top]:
+        path = PurePosixPath(rel.lower())
+        targets.update((path.as_posix(), path.name))
+        if path.suffix == ".md":
+            targets.update((path.with_suffix("").as_posix(), path.stem))
     return targets
+
+
+def _broken_link_detail(target: str, embed: bool) -> str:
+    if embed:
+        return (
+            f"embed target not found: {target}; keep embedded files in the project, "
+            "originals in 20_sources with an index row"
+        )
+    return f"wikilink target not found: {target}"
 
 
 def _source_reference_findings(
@@ -277,7 +286,7 @@ def check(root: Path, max_chars: int = DEFAULT_MAX_CHARS) -> list[Finding]:
                 )
 
     vault = is_vault_project(root)
-    markdown_targets = _markdown_targets(root, files) if vault else set()
+    link_targets = _link_targets(root, files) if vault else set()
 
     for rel in _context_files(files):
         try:
@@ -324,19 +333,13 @@ def check(root: Path, max_chars: int = DEFAULT_MAX_CHARS) -> list[Finding]:
                         f"frontmatter drive_id is {ID_PLACEHOLDER}",
                     )
                 )
-            for target in wikilink_targets(text):
-                normalized = target[:-3] if target.lower().endswith(".md") else target
-                if (
-                    normalized not in markdown_targets
-                    and Path(normalized).name not in markdown_targets
-                ):
-                    findings.append(
-                        Finding(
-                            FindingKind.BROKEN_LINK,
-                            rel,
-                            f"wikilink target not found: {target}",
-                        )
-                    )
+            for target, embed in wikilinks(text):
+                wanted = PurePosixPath(target.lower())
+                if wanted.as_posix() in link_targets or wanted.name in link_targets:
+                    continue
+                findings.append(
+                    Finding(FindingKind.BROKEN_LINK, rel, _broken_link_detail(target, embed))
+                )
 
     for rel in files:
         if not rel.startswith(SOURCES_DIR + "/") or Path(rel).suffix.lower() not in TEXT_SUFFIXES:

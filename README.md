@@ -62,7 +62,7 @@ The scripts turn several workflow rules into deterministic checks:
 - context files stay under the configured size cap, 50,000 by default, counted in UTF-8 bytes so accented text cannot slip past it;
 - `10_context` and `20_sources` stay flat: a subfolder is reported as `NESTED_FOLDER` in both formats;
 - destructive index refreshes require an explicit `--allow-drop`;
-- vault projects require frontmatter and valid Obsidian wikilinks;
+- vault projects require frontmatter and valid Obsidian wikilinks and embeds, resolved against every project file as Obsidian resolves them;
 - a Drive ID recorded in frontmatter agrees with the file's index row, and a vault frontmatter ID is populated;
 - a local vault can be compared with a Drive listing using `check_sync.py`;
 - a Docs project is validated against the real Drive listing with `check_drive.py`: rows, IDs, renames, duplicate titles and the fixed layout.

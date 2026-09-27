@@ -57,9 +57,13 @@ owner: "Ana"
 
 `check_index.py` reports `MISSING_FRONTMATTER` if a required key is absent/empty, `MISSING_DRIVE_ID` while `drive_id` is still `TODO-ID`, and `ID_MISMATCH` when `drive_id` disagrees with the file's index row. `build_index.py` lets the frontmatter ID win and says so on stderr, so fix whichever side is wrong before writing the index.
 
-## Wikilinks
+## Wikilinks and embeds
 
 `[[wikilinks]]` are for human navigation. Assistants still use 01_INDEX as the canonical routing map. Links must resolve inside the shared project; `check_index.py` reports `BROKEN_LINK` otherwise.
+
+`check_index.py` resolves a link the way Obsidian does: against every file in `10_context`, `20_sources` and the three root files, by path or by file name, ignoring case. A note also resolves without `.md`; any other file needs its extension, as in `[[informe.pdf]]`. Text inside inline code or a code block is not a link.
+
+An embed such as `![[figura.png]]` follows the same rule. An image or PDF that a note embeds is an original, so it lives in `20_sources` with its own index row and Drive ID, and a reader on Drive opens it by that ID. An image pasted into a note by accident is reported as a broken embed until it is moved there or the embed is removed.
 
 ## Sync verification
 

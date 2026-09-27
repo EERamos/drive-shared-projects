@@ -163,7 +163,7 @@ The validator checks:
 - a folder inside `10_context` or `20_sources` (`NESTED_FOLDER`), the same layout rule the Docs check applies;
 - the explicit `Source:` reference of an extract: the path must resolve under `20_sources` and a declared Drive ID must match the index row. There is no filename-based topic heuristic; the `Source:` line is the only extract-to-source relationship;
 - a frontmatter `drive_id` that disagrees with the file's index row (`ID_MISMATCH`), in any md project, because `build_index.py` lets the frontmatter win;
-- in vault mode, required frontmatter, a frontmatter `drive_id` still at `TODO-ID` (`MISSING_DRIVE_ID`) and broken `[[wikilinks]]`.
+- in vault mode, required frontmatter, a frontmatter `drive_id` still at `TODO-ID` (`MISSING_DRIVE_ID`) and broken `[[wikilinks]]` or `![[embeds]]`, resolved as Obsidian does: any project file, by path or name, ignoring case, never inside code.
 
 Exit `0` means clean, `1` means findings, `2` means usage/setup error.
 
