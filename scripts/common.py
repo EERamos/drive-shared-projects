@@ -52,6 +52,8 @@ _SOURCE_LINE = re.compile(
 )
 _WIKILINK = re.compile(r"\[\[([^\]]+)\]\]")
 _DRIVE_ID_LINE = re.compile(r"^-\s+([^:]+):\s*(\S+)\s*$", re.MULTILINE)
+_HEADING_LINE = re.compile(r"^(#{1,6})[ \t]+(.+?)\s*$")
+_DRIVE_IDS_TITLE = DRIVE_IDS_HEADING.lstrip("#").strip()
 _ESCAPED_PUNCTUATION = re.compile(r"\\+([!-/:-@\[-`{-~])")
 _LIST_INDENT = re.compile(r"^[ \t]+(?=(?:[-*+]|\d+[.)])[ \t])")
 _END_LIST_MARKER = "<!-- end list -->"
@@ -267,9 +269,37 @@ def is_real_drive_id(value: str) -> bool:
     return bool(value.strip()) and value.strip() != ID_PLACEHOLDER
 
 
+def _drive_ids_section(text: str) -> str | None:
+    """The lines under the Drive IDs heading, or None when no heading starts with Drive IDs.
+
+    The section runs to the next heading of the same or a higher level.
+    """
+    lines = text.split("\n")
+    for start, line in enumerate(lines):
+        heading = _HEADING_LINE.match(line)
+        if heading is None or not heading.group(2).startswith(_DRIVE_IDS_TITLE):
+            continue
+        level = len(heading.group(1))
+        end = start + 1
+        while end < len(lines):
+            following = _HEADING_LINE.match(lines[end])
+            if following is not None and len(following.group(1)) <= level:
+                break
+            end += 1
+        return "\n".join(lines[start + 1 : end])
+    return None
+
+
 def instruction_drive_ids(text: str) -> dict[str, str]:
-    """Parse the simple `- label: ID` lines under the Drive IDs section."""
-    return {label.strip(): value.strip() for label, value in _DRIVE_ID_LINE.findall(text)}
+    """Parse the `- label: ID` lines of the Drive IDs section only; empty without one.
+
+    A `- label: value` line elsewhere in 00_INSTRUCTIONS, such as a local vault path under
+    a later heading, must not override a canonical ID.
+    """
+    section = _drive_ids_section(text)
+    if section is None:
+        return {}
+    return {label.strip(): value.strip() for label, value in _DRIVE_ID_LINE.findall(section)}
 
 
 def is_vault_project(root: Path) -> bool:
@@ -381,7 +411,7 @@ def duplicate_drive_id_paths(rows: Iterable[IndexRow]) -> list[tuple[str, list[s
 
 def missing_canonical_ids(instructions_text: str) -> list[str] | None:
     """Canonical labels whose ID is empty or TODO-ID, or None when the section is missing."""
-    if DRIVE_IDS_HEADING not in instructions_text:
+    if _drive_ids_section(instructions_text) is None:
         return None
     ids = instruction_drive_ids(instructions_text)
     return [label for label in CANONICAL_LABELS if not is_real_drive_id(ids.get(label, ""))]

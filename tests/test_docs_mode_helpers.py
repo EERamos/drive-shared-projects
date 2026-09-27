@@ -109,6 +109,26 @@ def test_normalize_is_idempotent_on_its_own_output(text: str) -> None:
     assert normalize_connector_markdown(once) == once
 
 
+def test_drive_id_lines_outside_their_section_are_ignored() -> None:
+    text = (
+        "# P\n\n- 01_INDEX: stray-before\n\n## Drive IDs\n\n"
+        "- Project folder: 1project\n- 01_INDEX: 1index\n\n"
+        "## Local setup\n\n- Project folder: C:\\vault\\Projects\\p\n"
+    )
+    assert instruction_drive_ids(text) == {"Project folder": "1project", "01_INDEX": "1index"}
+
+
+def test_a_subheading_does_not_end_the_drive_ids_section() -> None:
+    text = "## Drive IDs\n\n### Folders\n\n- Project folder: 1p\n\n## Rules\n\n- 90_LOG: x\n"
+    assert instruction_drive_ids(text) == {"Project folder": "1p"}
+
+
+def test_instructions_without_a_drive_ids_heading_have_no_ids() -> None:
+    text = "# P\n\nThe Drive IDs live elsewhere.\n\n- Project folder: 1p\n"
+    assert instruction_drive_ids(text) == {}
+    assert missing_canonical_ids(text) is None
+
+
 def test_real_instructions_fixture_yields_all_canonical_ids() -> None:
     text = connector_markdown(_fixture("00_INSTRUCTIONS.json"))
     ids = instruction_drive_ids(text)
