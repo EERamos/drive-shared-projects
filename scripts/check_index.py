@@ -6,6 +6,7 @@ Findings:
     DUPLICATE_ROW           same file appears more than once in the index
     MISSING_DRIVE_ID        index row still has TODO-ID or an empty ID
     DUPLICATE_DRIVE_ID      one populated Drive ID is assigned to multiple rows
+    NESTED_FOLDER           a folder inside 10_context or 20_sources; both stay flat
     MISSING_PROJECT_ID       canonical project ID absent/TODO-ID, or no Drive IDs section
     DUPLICATE_PROJECT_ID     a canonical project ID collides with another one or a row
     UNREADABLE              context file or 00_INSTRUCTIONS is not readable UTF-8 text
@@ -34,6 +35,7 @@ from common import (
     FRONTMATTER_REQUIRED,
     INDEX_FILE,
     INSTRUCTIONS_FILE,
+    SCANNED_DIRS,
     SOURCES_DIR,
     ExitCode,
     IndexRow,
@@ -50,6 +52,7 @@ from common import (
     parse_index,
     read_index_or_error,
     read_text,
+    relative_posix,
     scan_files,
     source_reference,
     wikilink_targets,
@@ -66,6 +69,7 @@ class FindingKind(Enum):
     DUPLICATE_ROW = auto()
     MISSING_DRIVE_ID = auto()
     DUPLICATE_DRIVE_ID = auto()
+    NESTED_FOLDER = auto()
     MISSING_PROJECT_ID = auto()
     DUPLICATE_PROJECT_ID = auto()
     UNREADABLE = auto()
@@ -87,6 +91,20 @@ class Finding:
 
 def _context_files(files: Sequence[str]) -> list[str]:
     return [f for f in files if f.startswith(CONTEXT_DIR + "/")]
+
+
+def _nested_folders(root: Path) -> list[str]:
+    """Folders directly inside 10_context and 20_sources; dot folders are skipped like dotfiles."""
+    nested: list[str] = []
+    for sub in SCANNED_DIRS:
+        base = root / sub
+        if base.is_dir():
+            nested.extend(
+                relative_posix(root, path)
+                for path in base.iterdir()
+                if path.is_dir() and not path.name.startswith(".")
+            )
+    return sorted(nested)
 
 
 def _markdown_targets(root: Path, files: Sequence[str]) -> set[str]:
@@ -181,6 +199,16 @@ def check(root: Path, max_chars: int = DEFAULT_MAX_CHARS) -> list[Finding]:
                 FindingKind.DUPLICATE_DRIVE_ID,
                 unique_paths[0],
                 f"Drive ID {drive_id} also used by " + ", ".join(unique_paths[1:]),
+            )
+        )
+
+    for rel in _nested_folders(root):
+        folder = rel.split("/", 1)[0]
+        findings.append(
+            Finding(
+                FindingKind.NESTED_FOLDER,
+                rel,
+                f"folder inside {folder}; keep it flat, the Drive check does not look inside it",
             )
         )
 

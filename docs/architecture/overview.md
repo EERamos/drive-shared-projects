@@ -24,6 +24,7 @@ Paths are convenient but mutable. Drive IDs are canonical external identities. I
 A project is clean when:
 
 - index membership matches disk membership;
+- 10_context and 20_sources are flat, with no subfolders;
 - each row has one unique populated Drive ID;
 - canonical project IDs in 00_INSTRUCTIONS are populated and collision-free;
 - source references resolve and IDs agree;

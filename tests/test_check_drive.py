@@ -193,6 +193,18 @@ def test_reports_nested_folders_instead_of_descending() -> None:
     assert _shape(findings) == [(DriveFindingKind.NESTED_FOLDER, "10_context/archive")]
 
 
+def test_csv_paths_below_a_subfolder_report_the_subfolder_once() -> None:
+    rows = [IndexRow("20_sources/archive/old.pdf", "1o", "O", "detail", "Ana")]
+    sources = parse_listing(
+        "path,drive_id\n20_sources/archive/old.pdf,1o\n20_sources/archive/deep/older.pdf,1p\n"
+    )
+    findings = check_drive(_instructions(), _index(rows), _listings(sources=sources))
+    assert _shape(findings) == [
+        (DriveFindingKind.NESTED_FOLDER, "20_sources/archive"),
+        (DriveFindingKind.STALE_ROW, "20_sources/archive/old.pdf"),
+    ]
+
+
 def test_entries_from_another_folder_are_a_listing_error() -> None:
     with pytest.raises(ListingError, match=SOURCES):
         check_drive(

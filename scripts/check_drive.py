@@ -12,7 +12,8 @@ Plain Markdown for the documents and a `path,drive_id` CSV for the listings are 
 Every listing is bound to one folder. Both content listings are mandatory, so an empty
 listing means an empty folder and a folder can never go unchecked. Every entry must belong
 to the folder it was listed for: the same `parentId` recorded in 00_INSTRUCTIONS for JSON,
-a path under that folder for CSV. Anything else is a usage error, not a finding.
+a path under that folder for CSV. Anything else is a usage error, not a finding. A CSV path
+below a subfolder stands for that subfolder, as a JSON listing would show it.
 
 Findings:
     MISSING_PROJECT_ID       canonical project ID absent/TODO-ID, or no Drive IDs section
@@ -21,6 +22,7 @@ Findings:
     MISSING_DRIVE_ID         index row still has TODO-ID or an empty ID
     DUPLICATE_DRIVE_ID       one populated Drive ID is assigned to multiple rows
     NESTED_FOLDER            a folder inside 10_context or 20_sources; its contents are not checked
+                             (a CSV path below a subfolder reports that subfolder)
     DUPLICATE_TITLE          two Drive entries share the same path
     MISSING_CANONICAL_FILE   the project-root listing lacks one of the fixed entries
     DUPLICATE_CANONICAL_FILE both variants of a fixed entry exist (01_INDEX and 01_INDEX.md)
@@ -46,6 +48,7 @@ from pathlib import Path
 
 from common import (
     CONTEXT_DIR,
+    FOLDER_MIME_TYPE,
     INSTRUCTIONS_FILE,
     SOURCES_DIR,
     DriveEntry,
@@ -162,6 +165,14 @@ def _in_folder(path: str, folder: str) -> bool:
     return path.startswith(folder + "/") and len(path) > len(folder) + 1
 
 
+def _csv_subfolder(path: str, folder: str) -> str | None:
+    """The first subfolder of a CSV path under a content folder, or None if the file is direct."""
+    rest = path[len(folder) + 1 :] if folder else path
+    if not folder or "/" not in rest:
+        return None
+    return f"{folder}/{rest.split('/', 1)[0]}"
+
+
 def _place(listing: Listing, instructions_text: str, project_ids: dict[str, str]) -> list[_Placed]:
     """Resolve every entry of one listing to a project path, or raise ListingError."""
     name = _folder_name(listing.folder)
@@ -176,12 +187,21 @@ def _place(listing: Listing, instructions_text: str, project_ids: dict[str, str]
         raise ListingError(f"cannot check {name}: {reason}")
     placed: list[_Placed] = []
     foreign: list[str] = []
+    subfolders: set[str] = set()
     for entry in listing.entries:
         if entry.path is not None:
-            if _in_folder(entry.path, listing.folder):
-                placed.append(_Placed(entry.path, listing.folder, entry))
-            else:
+            if not _in_folder(entry.path, listing.folder):
                 foreign.append(entry.path)
+                continue
+            subfolder = _csv_subfolder(entry.path, listing.folder)
+            if subfolder is None:
+                placed.append(_Placed(entry.path, listing.folder, entry))
+            elif subfolder not in subfolders:
+                # A JSON listing shows the subfolder, never its files; a CSV row stands for it.
+                subfolders.add(subfolder)
+                title = subfolder.rsplit("/", 1)[1]
+                folder_entry = DriveEntry("", title, FOLDER_MIME_TYPE, None, subfolder)
+                placed.append(_Placed(subfolder, listing.folder, folder_entry))
             continue
         if entry.parent_id is None:
             raise ListingError(

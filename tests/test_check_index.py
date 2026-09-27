@@ -193,6 +193,44 @@ def test_a_context_file_exactly_at_the_cap_is_not_too_large(clean_tree: Path) ->
     assert [f.kind for f in check(clean_tree, max_chars=size - 1)] == [FindingKind.TOO_LARGE]
 
 
+def test_a_subfolder_of_sources_is_a_nested_folder(clean_tree: Path) -> None:
+    archive = clean_tree / SOURCES_DIR / "archive"
+    archive.mkdir()
+    (archive / "old.pdf").write_bytes(b"%PDF old")
+    _write_index(
+        clean_tree,
+        [
+            IndexRow("10_context/pricing.md", "id1", "Pricing extract", "always", "me"),
+            IndexRow("20_sources/archive/old.pdf", "id2", "Old original", "detail", "me"),
+            IndexRow("20_sources/pricing.pdf", "abc", "Pricing original", "detail", "me"),
+        ],
+    )
+    assert check(clean_tree) == [
+        Finding(
+            FindingKind.NESTED_FOLDER,
+            "20_sources/archive",
+            "folder inside 20_sources; keep it flat, the Drive check does not look inside it",
+        )
+    ]
+
+
+def test_only_the_top_subfolder_is_reported_and_an_empty_one_counts(clean_tree: Path) -> None:
+    (clean_tree / SOURCES_DIR / "a" / "b").mkdir(parents=True)
+    (clean_tree / CONTEXT_DIR / "drafts").mkdir()
+    findings = check(clean_tree)
+    assert [(f.kind, f.path) for f in findings] == [
+        (FindingKind.NESTED_FOLDER, "10_context/drafts"),
+        (FindingKind.NESTED_FOLDER, "20_sources/a"),
+    ]
+
+
+def test_dot_folders_are_not_nested_folders(clean_tree: Path) -> None:
+    hidden = clean_tree / CONTEXT_DIR / ".obsidian"
+    hidden.mkdir()
+    (hidden / "workspace.json").write_text("{}", encoding="utf-8")
+    assert check(clean_tree) == []
+
+
 def test_duplicate_row(clean_tree: Path) -> None:
     _write_index(
         clean_tree,

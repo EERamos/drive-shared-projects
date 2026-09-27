@@ -36,6 +36,7 @@ Read anything else only when the index says so or the user asks for it.
 - Every indexed file must have one populated, unique Drive ID before the project is considered clean.
 - Every extract with a Source: line must point to a real file under 20_sources and, when an ID is present, the same Drive ID recorded in 01_INDEX.
 - Titles are unique inside 10_context and 20_sources; the index addresses files by folder and title.
+- 10_context and 20_sources have no subfolders; every file sits directly in one of them.
 
 ## Assistants and roles
 

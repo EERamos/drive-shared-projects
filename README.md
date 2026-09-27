@@ -60,6 +60,7 @@ The scripts turn several workflow rules into deterministic checks:
 - the canonical project IDs in `00_INSTRUCTIONS` (project/context/source folders, INDEX and LOG) are populated and do not collide with each other or indexed files;
 - a `Source:` relationship points to a real source and, when supplied, the same Drive ID recorded in the index;
 - context files stay under the configured size cap, 50,000 by default, counted in UTF-8 bytes so accented text cannot slip past it;
+- `10_context` and `20_sources` stay flat: a subfolder is reported as `NESTED_FOLDER` in both formats;
 - destructive index refreshes require an explicit `--allow-drop`;
 - vault projects require frontmatter and valid Obsidian wikilinks;
 - a local vault can be compared with a Drive listing using `check_sync.py`;
@@ -76,7 +77,7 @@ project/
 └── 90_LOG.md
 ```
 
-The names are fixed because the scripts and prompt templates key on them.
+The names are fixed because the scripts and prompt templates key on them. `10_context/` and `20_sources/` hold files only, no subfolders: the Drive check lists each folder one level deep.
 
 ## Workflows
 
@@ -247,7 +248,7 @@ python ~/.claude/skills/drive-shared-projects/scripts/check_drive.py \
 
 The two content listings are mandatory and each is bound to its folder: an empty result means an empty folder, and entries that belong to another folder are a usage error, so the check can never report clean with a folder unchecked. The project listing is optional and adds the fixed-layout checks.
 
-It reports `MISSING_ROW`, `STALE_ROW`, `RENAMED_FILE`, `ID_MISMATCH`, `DUPLICATE_TITLE`, `NESTED_FOLDER`, the index-structure and canonical-ID findings of `check_index.py`, and with the project listing `MISSING_CANONICAL_FILE`, `DUPLICATE_CANONICAL_FILE` and `UNEXPECTED_FILE`. `UNEXPECTED_FILE` on `_staging/` is the expected report while an ingest order is open, and a leftover to trash otherwise. Same exit codes. Plain Markdown documents and `path,drive_id` CSV listings, one per folder, are accepted as well; duplicate paths in a CSV are kept and reported.
+It reports `MISSING_ROW`, `STALE_ROW`, `RENAMED_FILE`, `ID_MISMATCH`, `DUPLICATE_TITLE`, `NESTED_FOLDER`, the index-structure and canonical-ID findings of `check_index.py`, and with the project listing `MISSING_CANONICAL_FILE`, `DUPLICATE_CANONICAL_FILE` and `UNEXPECTED_FILE`. `UNEXPECTED_FILE` on `_staging/` is the expected report while an ingest order is open, and a leftover to trash otherwise. Same exit codes. Plain Markdown documents and `path,drive_id` CSV listings, one per folder, are accepted as well; duplicate paths in a CSV are kept and reported, and a CSV path below a subfolder is reported as `NESTED_FOLDER`.
 
 ## Refresh the index safely
 

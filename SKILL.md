@@ -42,6 +42,7 @@ Creating a document that does not exist yet is not constrained: the drafter crea
 - Fixed names/index headers/`Source:`/`TODO-ID` remain in English because scripts key on them. Project prose uses the user's language.
 - Every clean project has one populated unique Drive ID per index row.
 - In Docs format the File cell is `10_context/<Drive title>` or `20_sources/<file name>`; a Google Doc has no extension. Titles must be unique inside each folder because the index addresses files by path.
+- `10_context` and `20_sources` have no subfolders, in either format. The Drive check lists each folder one level deep, so a subfolder would hide its files; `check_drive.py` and `check_index.py` report one as `NESTED_FOLDER`.
 - A `Source:` relationship must resolve to a real file under `20_sources`; if it declares a Drive ID, it must match the source's index row.
 - `build_index.py --write` must not remove stale rows unless the user reviewed them and `--allow-drop` is supplied.
 - Every change to an existing project document travels as a change order (Workflow 7); the party that drafts it does not apply it. Creating a new document needs no order; indexing it does.
@@ -138,7 +139,7 @@ In Claude Code:
 
 4. Propose the index edits the findings call for, the owner applies them, run the check again.
 
-It reports `MISSING_ROW`, `STALE_ROW`, `RENAMED_FILE` (same Drive ID, new title), `ID_MISMATCH`, `DUPLICATE_TITLE`, `NESTED_FOLDER`, `MISSING_DRIVE_ID`, `DUPLICATE_DRIVE_ID`, `DUPLICATE_ROW`, the canonical-ID findings of `00_INSTRUCTIONS` and, with a project listing, `MISSING_CANONICAL_FILE`, `DUPLICATE_CANONICAL_FILE` (both `01_INDEX` and `01_INDEX.md` exist) and `UNEXPECTED_FILE`. Exit `0` means clean, `1` findings, `2` usage error (malformed input, a folder without a recorded ID, or entries listed under the wrong folder). Markdown documents and `path,drive_id` CSV listings, one per folder, are accepted too.
+It reports `MISSING_ROW`, `STALE_ROW`, `RENAMED_FILE` (same Drive ID, new title), `ID_MISMATCH`, `DUPLICATE_TITLE`, `NESTED_FOLDER`, `MISSING_DRIVE_ID`, `DUPLICATE_DRIVE_ID`, `DUPLICATE_ROW`, the canonical-ID findings of `00_INSTRUCTIONS` and, with a project listing, `MISSING_CANONICAL_FILE`, `DUPLICATE_CANONICAL_FILE` (both `01_INDEX` and `01_INDEX.md` exist) and `UNEXPECTED_FILE`. Exit `0` means clean, `1` findings, `2` usage error (malformed input, a folder without a recorded ID, or entries listed under the wrong folder). Markdown documents and `path,drive_id` CSV listings, one per folder, are accepted too. A CSV path below a subfolder is reported as `NESTED_FOLDER` for that subfolder, as a JSON listing would show it.
 
 `UNEXPECTED_FILE` on `_staging/` is expected only while an ingest order (Workflow 8) is open; at any other time the folder is a leftover to trash. The finding's suggested remedy ("move it into 20_sources or remove it") does not apply to `_staging/`: never move it into the canonical tree; trash it or let the open order commit it by moving the verified files.
 
@@ -159,6 +160,7 @@ The validator checks:
 - a missing or unreadable Drive IDs section in `00_INSTRUCTIONS`;
 - missing/colliding canonical project IDs recorded in `00_INSTRUCTIONS`;
 - unreadable context files, and context files over the size cap counted in UTF-8 bytes;
+- a folder inside `10_context` or `20_sources` (`NESTED_FOLDER`), the same layout rule the Docs check applies;
 - the explicit `Source:` reference of an extract: the path must resolve under `20_sources` and a declared Drive ID must match the index row. There is no filename-based topic heuristic; the `Source:` line is the only extract-to-source relationship;
 - in vault mode, required frontmatter and broken `[[wikilinks]]`.
 
@@ -221,7 +223,7 @@ Rules: one open order per document, because there is no conflict detection and t
 
 Trigger: an ingest with more than one source, or any ingest run by a writer assistant. A single source with a human paste stays in Workflow 3.
 
-1. Manifest, with no writes, from `templates/ingest-order.md`: sources to copy with origin, Drive ID and target subfolder; exclusions with the reason (personal data of a natural person is excluded unless the owner says otherwise); extracts to create with topic, file name, sources and who synthesises; the exact index rows and the exact log entry. The owner approves it.
+1. Manifest, with no writes, from `templates/ingest-order.md`: sources to copy with origin, Drive ID and file name under `20_sources`, which has no subfolders; exclusions with the reason (personal data of a natural person is excluded unless the owner says otherwise); extracts to create with topic, file name, sources and who synthesises; the exact index rows and the exact log entry. The owner approves it.
 2. Execution into `_staging/`, a transient folder at the project root, never into `10_context` or `20_sources`. The writer assistant creates the copies and extracts there when the project has one; otherwise the drafter creates them and the owner checks the staged files against the manifest before the commit. Before copying, list the target and skip anything already present with the same name; the same manifest run twice creates nothing.
 3. Batch verification on the staged files by the drafter. Mechanical: every planned file present and nothing else; every extract with a `Source:` block that resolves to the planned sources and certainty tags on factual bullets; no staged original is personal data. Semantic: a sample of extracts checked against their sources for time windows, dates, units and claims presented as facts.
 4. Commit: the drafter moves the verified files into `20_sources` and `10_context` (the move keeps each Drive ID); then the writer applies the index rows in one write and the log entry in one write, or a person pastes them, each read back before the next.
