@@ -37,14 +37,14 @@ def test_skill_has_write_paths_and_new_workflows() -> None:
     assert "templates/roles/" in text
 
 
-def test_readme_changelog_and_version_are_0_4_0() -> None:
+def test_readme_changelog_and_version_are_0_4_1() -> None:
     readme = _read("README.md")
     assert "Writes in place" in readme
     assert "7. **Change order**" in readme
     assert "8. **Ingest order**" in readme
     assert "## Assistant roles, change orders and ingest orders" in readme
-    assert "## [0.4.0]" in _read("CHANGELOG.md")
-    assert 'version = "0.4.0"' in _read("pyproject.toml")
+    assert "## [0.4.1]" in _read("CHANGELOG.md")
+    assert 'version = "0.4.1"' in _read("pyproject.toml")
 
 
 def test_no_document_asks_for_a_subfolder_under_20_sources() -> None:

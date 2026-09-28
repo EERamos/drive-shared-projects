@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows Keep
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-09-28
+
 ### Changed
 
 - `templates/01_INDEX.md` no longer writes `<Drive title>` and `<file name>`. Converted to a Google Doc, text between angle brackets is dropped, so the File guidance of every Docs-format index read "10_context/or 20_sources/". A test keeps angle-bracket placeholders out of the templates that become Docs.
