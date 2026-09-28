@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows Keep
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-09-28
+
 ### Changed
 
 - CI runs the tests, lint, format and type checks on Windows as well as Linux, for every Python version from 3.10 to 3.13. The scripts also run on Windows, in Claude Code desktop, and the encoding failure under Fixed never showed on Linux.
