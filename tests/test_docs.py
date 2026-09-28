@@ -81,3 +81,15 @@ def test_workflow_6_offers_the_drive_check_and_the_csv() -> None:
     workflow = _read("SKILL.md").split("## Workflow 6")[1].split("## Workflow 7")[0]
     assert "check_drive.py" in workflow
     assert "check_sync.py" in workflow
+
+
+def test_connector_reference_records_the_2026_09_27_test() -> None:
+    text = _read("references/drive-connector-behavior.md")
+    assert "contentMimeType" in text
+    assert "63,978 bytes" in text
+    assert "Claude Code on the web with the claude.ai Drive connector" in text
+
+
+def test_docs_maintenance_accepts_a_result_claude_code_saved_to_a_file() -> None:
+    workflow = _read("SKILL.md").split("### Docs format")[1].split("### md format")[0]
+    assert "saved a large result to a file" in workflow

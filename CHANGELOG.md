@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows Keep
 
 ## [Unreleased]
 
+### Changed
+
+- `templates/01_INDEX.md` no longer writes `<Drive title>` and `<file name>`. Converted to a Google Doc, text between angle brackets is dropped, so the File guidance of every Docs-format index read "10_context/or 20_sources/". A test keeps angle-bracket placeholders out of the templates that become Docs.
+- The solo mode fragment says the person may edit files directly while a change an assistant makes still travels as a change order. It read as if no orders were needed, which contradicted the Change orders section of the same instructions once a writer assistant takes part.
+- Connector reference, from a test in Claude Code on the web against a real Drive on 2026-09-27. The size cap follows the client, not the connector: Google Docs up to 63,978 bytes read back complete, and above about 50 KB Claude Code saves the result to a file instead of showing it. Folders are created with `contentMimeType`, because the tool marks `mimeType` as deprecated. Read results carry `title` and `viewUrl`, listings carry `fileSize` for Docs too, and angle brackets are dropped on conversion. Three checklist rows record the new environment.
+- Workflow 5 and the README: a large result that Claude Code saved to a file is the verbatim JSON, and goes to `check_drive.py` as it is instead of being copied by hand.
+
 ## [0.4.0] - 2026-09-27
 
 ### Added

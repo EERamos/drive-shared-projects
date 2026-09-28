@@ -1,4 +1,4 @@
-- One person owns everything and edits files directly.
+- One person owns everything and may edit the files directly. A change an assistant makes to an existing document still travels as a change order.
 - The author field in log entries is optional.
 - Sharing: none required.
 - Changing 00_INSTRUCTIONS: edit directly.
