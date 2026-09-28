@@ -44,6 +44,7 @@ from common import (
     render_index_table,
     replace_index_table,
     scan_files,
+    use_utf8_output,
     write_text,
 )
 
@@ -177,6 +178,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    use_utf8_output()
     parsed = parse_args_or_exit(build_parser(), argv)
     if isinstance(parsed, int):
         return parsed

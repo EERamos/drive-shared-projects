@@ -390,6 +390,19 @@ def parse_args_or_exit(
         return ExitCode.USAGE if exc.code else ExitCode.OK
 
 
+def use_utf8_output() -> None:
+    """Write stdout and stderr as UTF-8, whatever the platform's default encoding.
+
+    On Windows, Python encodes output that another program reads, as Claude Code does, in the
+    ANSI code page; a name with a character outside it would stop the run with exit code 1,
+    the code for findings. What UTF-8 cannot carry, such as an undecodable byte in a POSIX
+    file name, prints as a backslash escape.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        if isinstance(stream, io.TextIOWrapper):
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
+
+
 def missing_project_paths(root: Path) -> list[Path]:
     """Required paths of a project folder that are absent, in a fixed order."""
     missing: list[Path] = []

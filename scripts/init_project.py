@@ -30,6 +30,7 @@ from common import (
     fill_template,
     parse_args_or_exit,
     read_text,
+    use_utf8_output,
     write_text,
 )
 
@@ -129,6 +130,7 @@ def create_project(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    use_utf8_output()
     parsed = parse_args_or_exit(build_parser(), argv)
     if isinstance(parsed, int):
         return parsed

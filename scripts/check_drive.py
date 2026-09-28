@@ -68,6 +68,7 @@ from common import (
     parse_index,
     parse_listing,
     read_text_or_error,
+    use_utf8_output,
 )
 
 EXIT_OK = ExitCode.OK
@@ -487,6 +488,7 @@ def _listing(folder: str, path: Path) -> Listing | int:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    use_utf8_output()
     parsed = parse_args_or_exit(build_parser(), argv)
     if isinstance(parsed, int):
         return parsed
