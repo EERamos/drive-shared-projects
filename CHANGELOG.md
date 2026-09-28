@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows Keep
 
 ## [Unreleased]
 
+### Fixed
+
+- Every script writes its output as UTF-8, whatever encoding Python would pick for it. On Windows, Python encodes output that another program reads, as Claude Code does, in the ANSI code page (cp1252 on Spanish and English systems). A file name or Doc title with a character outside it, such as `→`, `✓` or an emoji, stopped `check_index.py`, `check_drive.py`, `check_sync.py`, `build_index.py` and `init_project.py` with `UnicodeEncodeError` before any finding was listed, and the exit code was 1, the code for findings. Accented letters and `ñ` are in cp1252 and printed. New helper `common.use_utf8_output`, called first in every `main()`; what UTF-8 cannot carry, such as an undecodable byte in a POSIX file name, prints as a backslash escape. Subprocess tests run each script with `PYTHONIOENCODING=cp1252` and a name with an arrow.
+
 ## [0.4.1] - 2026-09-28
 
 ### Changed

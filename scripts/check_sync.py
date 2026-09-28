@@ -41,6 +41,7 @@ from common import (
     project_files,
     read_index_or_error,
     read_text_or_error,
+    use_utf8_output,
 )
 
 EXIT_OK = ExitCode.OK
@@ -148,6 +149,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    use_utf8_output()
     parsed = parse_args_or_exit(build_parser(), argv)
     if isinstance(parsed, int):
         return parsed

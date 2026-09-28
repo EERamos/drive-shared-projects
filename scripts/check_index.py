@@ -60,6 +60,7 @@ from common import (
     relative_posix,
     scan_files,
     source_reference,
+    use_utf8_output,
     wikilinks,
 )
 
@@ -365,6 +366,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    use_utf8_output()
     parsed = parse_args_or_exit(build_parser(), argv)
     if isinstance(parsed, int):
         return parsed
