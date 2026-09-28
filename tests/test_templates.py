@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -76,3 +77,16 @@ def test_generic_block_equals_drafter_block() -> None:
     generic = _read("assistant-instruction-generic.md").split("---")[1].strip()
     drafter = _read("roles/drafter.md").split("---")[1].strip()
     assert generic == drafter
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["00_INSTRUCTIONS.md", "01_INDEX.md", "90_LOG.md", "source-extract.md", "change-order.md"],
+)
+def test_templates_that_become_docs_have_no_angle_bracket_placeholders(name: str) -> None:
+    # Markdown-to-Doc conversion reads <file name> as an HTML tag and drops it.
+    assert re.search(r"<[A-Za-z][^>]*>", _read(name)) is None
+
+
+def test_solo_mode_keeps_change_orders_for_assistants() -> None:
+    assert "change order" in _read("modes/solo.md")

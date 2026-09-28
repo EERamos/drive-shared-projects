@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows Keep
 
 ## [Unreleased]
 
+### Changed
+
+- `templates/01_INDEX.md` no longer writes `<Drive title>` and `<file name>`. Converted to a Google Doc, text between angle brackets is dropped, so the File guidance of every Docs-format index read "10_context/or 20_sources/". A test keeps angle-bracket placeholders out of the templates that become Docs.
+- The solo mode fragment says the person may edit files directly while a change an assistant makes still travels as a change order. It read as if no orders were needed, which contradicted the Change orders section of the same instructions once a writer assistant takes part.
+
 ## [0.4.0] - 2026-09-27
 
 ### Added
