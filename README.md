@@ -152,7 +152,7 @@ The **protocol** is vendor-neutral; connector behavior is not. Do not confuse th
 | --- | --- | --- | --- |
 | Claude + Drive connector | reference implementation | no; creates and reads | read/create/listing behavior verified 2026-09-11; existing-content rewrite unsupported; Docs index validated by `check_drive.py` from saved connector results |
 | Claude Code + local md mirror | reference implementation | via the local file | local scripts covered by the test suite; whether a synchronizer keeps Drive IDs across renames is pending the test in `references/vault-setup.md` |
-| ChatGPT + Drive access | designed to consume the same folder | yes, verified 2026-09-17 | in a real project a document kept its Drive ID while its content changed; open-by-ID not confirmed, open-by-name works |
+| ChatGPT + Drive access | designed to consume the same folder | yes, verified 2026-09-17 | in a real project a document kept its Drive ID while its content changed; open-by-ID and two change orders applied in place confirmed 2026-09-28 in a test project |
 | Gemini + Drive access | designed to consume the same folder | not verified | not yet verified end-to-end here; starts as verifier |
 | Grok / Copilot / local model | compatible when a Drive/files tool exists | not verified | not yet verified end-to-end here |
 

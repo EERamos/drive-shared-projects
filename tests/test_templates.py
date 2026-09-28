@@ -90,3 +90,14 @@ def test_templates_that_become_docs_have_no_angle_bracket_placeholders(name: str
 
 def test_solo_mode_keeps_change_orders_for_assistants() -> None:
     assert "change order" in _read("modes/solo.md")
+
+
+@pytest.mark.parametrize("mode", ["solo", "duo", "group"])
+def test_every_mode_gives_the_assistants_accounts_access(mode: str) -> None:
+    assert "Google account each assistant uses" in _read(f"modes/{mode}.md")
+
+
+def test_writer_block_checks_the_target_id_and_never_uses_a_lookalike() -> None:
+    text = _read("roles/writer.md")
+    assert "has the Drive ID the order names" in text
+    assert "never a file with the same name elsewhere" in text
