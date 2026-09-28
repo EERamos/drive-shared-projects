@@ -4,10 +4,15 @@ All notable changes to this project are documented here. The format follows Keep
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-09-28
+
 ### Changed
 
 - `templates/01_INDEX.md` no longer writes `<Drive title>` and `<file name>`. Converted to a Google Doc, text between angle brackets is dropped, so the File guidance of every Docs-format index read "10_context/or 20_sources/". A test keeps angle-bracket placeholders out of the templates that become Docs.
 - The solo mode fragment says the person may edit files directly while a change an assistant makes still travels as a change order. It read as if no orders were needed, which contradicted the Change orders section of the same instructions once a writer assistant takes part.
+- Sharing covers the Google accounts the assistants use, not only people. Workflow 1, the modes reference and the three mode fragments say to share the project folder with the account each assistant's connector uses (Editor for a writer), and to have each assistant open `00_INSTRUCTIONS` by ID before the first order. In the 2026-09-28 test, ChatGPT's connector ran on a different account from the Drive owner's and got 403 and 404 until the folder was shared; the solo fragment had said "Sharing: none required".
+- The writer block checks that the opened document has the Drive ID the order names before writing, and falls back to a name only inside the project folder, never to a same-named file elsewhere.
+- Status: ChatGPT opened files by ID and applied two change orders in place in a test project on 2026-09-28, with both Drive IDs kept and `check_drive.py` clean afterwards (assistant-roles status table and README). The connector checklist records the second-account share as partial: tested as Editor, not as Commenter.
 - Connector reference, from a test in Claude Code on the web against a real Drive on 2026-09-27. The size cap follows the client, not the connector: Google Docs up to 63,978 bytes read back complete, and above about 50 KB Claude Code saves the result to a file instead of showing it. Folders are created with `contentMimeType`, because the tool marks `mimeType` as deprecated. Read results carry `title` and `viewUrl`, listings carry `fileSize` for Docs too, and angle brackets are dropped on conversion. Three checklist rows record the new environment.
 - Workflow 5 and the README: a large result that Claude Code saved to a file is the verbatim JSON, and goes to `check_drive.py` as it is instead of being copied by hand.
 

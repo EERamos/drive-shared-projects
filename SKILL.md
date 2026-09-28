@@ -77,7 +77,7 @@ Trigger: the user wants a new shared project.
 4. Create `01_INDEX` and `90_LOG`, record their IDs, then create `00_INSTRUCTIONS` last with those IDs and folder IDs already filled.
 5. Do **not** add the ID of `00_INSTRUCTIONS` inside itself. The project instruction block already carries that ID; removing the self-reference avoids a circular user-paste step.
 6. Fill `templates/project-instruction.md` (Claude, drafter by default) and one block from `templates/roles/` per other assistant that takes part, with the IDs of `00_INSTRUCTIONS`, `01_INDEX`, `90_LOG` and the folder path, and give them to the user.
-7. Apply sharing rules from `references/modes.md`.
+7. Apply sharing rules from `references/modes.md`, then share the project folder with the Google account each assistant's connector uses when it is not the owner's: Editor for a writer, Commenter for a drafter or verifier. Before the first order, have each assistant open `00_INSTRUCTIONS` by ID; a 403 or 404 means its account has no access yet.
 8. If vault mode, use `templates/source-extract-vault.md`, confirm the sync method, keep `.obsidian/` outside the shared project folder, take the IDs from Drive after the first sync (`references/vault-setup.md`) and run maintenance after IDs are populated.
 
 ## Workflow 2: Session start

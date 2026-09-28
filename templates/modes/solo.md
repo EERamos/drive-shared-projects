@@ -1,4 +1,4 @@
 - One person owns everything and may edit the files directly. A change an assistant makes to an existing document still travels as a change order.
 - The author field in log entries is optional.
-- Sharing: none required.
+- Sharing: none required between people. The Google account each assistant uses still needs access to the folder, Editor for a writer.
 - Changing 00_INSTRUCTIONS: edit directly.
