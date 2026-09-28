@@ -236,7 +236,7 @@ Exit codes:
 
 ## Validate a Docs project
 
-A Docs project has no local tree, so the check runs on the connector's own results. In Claude Code, read `00_INSTRUCTIONS` and `01_INDEX` by ID, list `10_context`, `20_sources` and the project folder with `parentId = '<folder id>'`, and save every tool result verbatim (`{"fileContent": ...}` and `{"files": [...]}`) into a scratch folder. Then:
+A Docs project has no local tree, so the check runs on the connector's own results. In Claude Code, read `00_INSTRUCTIONS` and `01_INDEX` by ID, list `10_context`, `20_sources` and the project folder with `parentId = '<folder id>'`, and save every tool result verbatim (`{"fileContent": ...}` and `{"files": [...]}`) into a scratch folder. When Claude Code saves a large result to a file instead of showing it, that file is the verbatim result: pass it as it is. Then:
 
 ```bash
 python ~/.claude/skills/drive-shared-projects/scripts/check_drive.py \

@@ -126,7 +126,7 @@ Always re-read/validate after the write. Never alter older entries.
 
 In Claude Code:
 
-1. Read `00_INSTRUCTIONS` and `01_INDEX` by ID and save each tool result verbatim as `00_INSTRUCTIONS.json` and `01_INDEX.json` in a scratch folder.
+1. Read `00_INSTRUCTIONS` and `01_INDEX` by ID and save each tool result verbatim as `00_INSTRUCTIONS.json` and `01_INDEX.json` in a scratch folder. When Claude Code has already saved a large result to a file instead of showing it, that file holds the verbatim JSON: pass it as it is rather than copying the content.
 2. Search `parentId = '<10_context folder ID>'` and `parentId = '<20_sources folder ID>'` with content snippets excluded; save each result verbatim as `10_context.json` and `20_sources.json`. To check the fixed layout too, search the project folder ID and save it as `project.json`.
 3. Run:
 
